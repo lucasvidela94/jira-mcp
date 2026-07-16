@@ -17,12 +17,7 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	}
 
 	opts := []jira.Option{}
-	if startAt, ok, err := optionalInt(args, "startAt"); err != nil {
-		return nil, err
-	} else if ok {
-		opts = append(opts, jira.WithStartAt(startAt))
-	}
-	if maxResults, ok, err := optionalInt(args, "maxResults"); err != nil {
+	if maxResults, ok, err := optionalInt(args, "max_results"); err != nil {
 		return nil, err
 	} else if ok {
 		opts = append(opts, jira.WithMaxResults(maxResults))

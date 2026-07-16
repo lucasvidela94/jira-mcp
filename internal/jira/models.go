@@ -11,11 +11,21 @@ type Issue struct {
 }
 
 // SearchResult is the response payload from the Jira search endpoint.
+// The new /rest/api/3/search/jql endpoint uses nextPageToken for pagination.
 type SearchResult struct {
-	StartAt    int     `json:"startAt"`
-	MaxResults int     `json:"maxResults"`
-	Total      int     `json:"total"`
-	Issues     []Issue `json:"issues"`
+	StartAt       int     `json:"startAt,omitempty"`
+	MaxResults    int     `json:"maxResults,omitempty"`
+	Total         int     `json:"total,omitempty"`
+	NextPageToken string  `json:"nextPageToken,omitempty"`
+	IsLast        bool    `json:"isLast,omitempty"`
+	Issues        []Issue `json:"issues"`
+}
+
+// SearchRequest is the POST body for the /rest/api/3/search/jql endpoint.
+type SearchRequest struct {
+	JQL        string   `json:"jql"`
+	MaxResults int      `json:"maxResults,omitempty"`
+	Fields     []string `json:"fields,omitempty"`
 }
 
 // Project is a minimal Jira project representation.

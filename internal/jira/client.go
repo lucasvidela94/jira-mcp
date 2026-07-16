@@ -26,13 +26,6 @@ type Client struct {
 // Option customizes a client request.
 type Option func(*url.Values)
 
-// WithStartAt sets the pagination offset.
-func WithStartAt(startAt int) Option {
-	return func(v *url.Values) {
-		v.Set("startAt", strconv.Itoa(startAt))
-	}
-}
-
 // WithMaxResults sets the pagination limit.
 func WithMaxResults(max int) Option {
 	return func(v *url.Values) {
@@ -130,14 +123,23 @@ func handleResponse(resp *http.Response, out any) error {
 	return nil
 }
 
-// Search performs a JQL search.
+// Search performs a JQL search using the enhanced search endpoint.
+// It requests key, summary, status, assignee, and issuetype by default.
 func (c *Client) Search(ctx context.Context, jql string, opts ...Option) (*SearchResult, error) {
+	req := SearchRequest{
+		JQL:    jql,
+		Fields: []string{"id", "key", "summary", "status", "assignee", "issuetype"},
+	}
 	query := url.Values{}
-	query.Set("jql", jql)
 	for _, opt := range opts {
 		opt(&query)
 	}
-	resp, err := c.doWithRetry(ctx, http.MethodGet, "/rest/api/3/search", query, nil)
+	if v := query.Get("maxResults"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			req.MaxResults = n
+		}
+	}
+	resp, err := c.doWithRetry(ctx, http.MethodPost, "/rest/api/3/search/jql", nil, req)
 	if err != nil {
 		return nil, err
 	}

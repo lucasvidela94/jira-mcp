@@ -130,18 +130,24 @@ func TestClient_do_NetworkError(t *testing.T) {
 
 func TestClient_Search(t *testing.T) {
 	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/rest/api/3/search" {
+		if r.URL.Path != "/rest/api/3/search/jql" {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		q := r.URL.Query()
-		if q.Get("jql") != "project = PROJ" {
-			t.Errorf("unexpected jql %q", q.Get("jql"))
+		if r.Method != http.MethodPost {
+			t.Errorf("unexpected method %s", r.Method)
 		}
-		if q.Get("startAt") != "0" {
-			t.Errorf("unexpected startAt %q", q.Get("startAt"))
+		var body SearchRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode failed: %v", err)
 		}
-		if q.Get("maxResults") != "50" {
-			t.Errorf("unexpected maxResults %q", q.Get("maxResults"))
+		if body.JQL != "project = PROJ" {
+			t.Errorf("unexpected jql %q", body.JQL)
+		}
+		if body.MaxResults != 50 {
+			t.Errorf("unexpected maxResults %d", body.MaxResults)
+		}
+		if len(body.Fields) == 0 {
+			t.Errorf("expected default fields to be requested")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchResult{
@@ -151,7 +157,7 @@ func TestClient_Search(t *testing.T) {
 	})
 	defer server.Close()
 
-	res, err := client.Search(context.Background(), "project = PROJ", WithStartAt(0), WithMaxResults(50))
+	res, err := client.Search(context.Background(), "project = PROJ", WithMaxResults(50))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -526,9 +532,12 @@ func TestClient_InvalidBaseURL(t *testing.T) {
 
 func TestClient_WithMaxResults(t *testing.T) {
 	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("maxResults") != "10" {
-			t.Errorf("unexpected maxResults %q", q.Get("maxResults"))
+		var body SearchRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode failed: %v", err)
+		}
+		if body.MaxResults != 10 {
+			t.Errorf("unexpected maxResults %d", body.MaxResults)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchResult{Total: 0, Issues: []Issue{}})
@@ -541,28 +550,14 @@ func TestClient_WithMaxResults(t *testing.T) {
 	}
 }
 
-func TestClient_WithStartAt(t *testing.T) {
+func TestClient_SearchBodyEncodesJQL(t *testing.T) {
 	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("startAt") != "25" {
-			t.Errorf("unexpected startAt %q", q.Get("startAt"))
+		var body SearchRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode failed: %v", err)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(SearchResult{Total: 0, Issues: []Issue{}})
-	})
-	defer server.Close()
-
-	_, err := client.Search(context.Background(), "project = PROJ", WithStartAt(25))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestClient_SearchURLEncodesJQL(t *testing.T) {
-	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("jql") != "project = PROJ AND status = \"In Progress\"" {
-			t.Errorf("unexpected jql %q", q.Get("jql"))
+		if body.JQL != "project = PROJ AND status = \"In Progress\"" {
+			t.Errorf("unexpected jql %q", body.JQL)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SearchResult{Total: 0, Issues: []Issue{}})

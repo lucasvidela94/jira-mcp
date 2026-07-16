@@ -6,8 +6,7 @@ func searchTool() mcp.Tool {
 	return mcp.NewTool("jira_search",
 		mcp.WithDescription("Search Jira issues using JQL."),
 		mcp.WithString("jql", mcp.Description("JQL query string"), mcp.Required()),
-		mcp.WithNumber("startAt", mcp.Description("Zero-based index of the first issue to return")),
-		mcp.WithNumber("maxResults", mcp.Description("Maximum number of issues to return")),
+		mcp.WithNumber("max_results", mcp.Description("Maximum number of issues to return")),
 	)
 }
 
