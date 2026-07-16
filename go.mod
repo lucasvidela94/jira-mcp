@@ -1,4 +1,4 @@
-module github.com/lucasvidela/jira-mcp
+module github.com/lucasvidela94/jira-mcp
 
 go 1.24.0
 

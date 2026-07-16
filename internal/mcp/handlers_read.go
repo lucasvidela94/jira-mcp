@@ -6,7 +6,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/lucasvidela/jira-mcp/internal/jira"
+	"github.com/lucasvidela94/jira-mcp/internal/jira"
 )
 
 func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

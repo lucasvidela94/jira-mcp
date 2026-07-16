@@ -8,7 +8,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/lucasvidela/jira-mcp/internal/jira"
+	"github.com/lucasvidela94/jira-mcp/internal/jira"
 )
 
 type fakeJiraClient struct {

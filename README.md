@@ -21,10 +21,10 @@ The server reads all configuration from environment variables:
 ## Installation
 
 ```bash
-go install github.com/lucasvidela/jira-mcp@latest
+go install github.com/lucasvidela94/jira-mcp@latest
 ```
 
-Or download a prebuilt binary from the [GitHub releases](https://github.com/lucasvidela/jira-mcp/releases) page.
+Or download a prebuilt binary from the [GitHub releases](https://github.com/lucasvidela94/jira-mcp/releases) page.
 
 ## Usage
 

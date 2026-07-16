@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/lucasvidela/jira-mcp/internal/config"
-	"github.com/lucasvidela/jira-mcp/internal/jira"
-	"github.com/lucasvidela/jira-mcp/internal/mcp"
+	"github.com/lucasvidela94/jira-mcp/internal/config"
+	"github.com/lucasvidela94/jira-mcp/internal/jira"
+	"github.com/lucasvidela94/jira-mcp/internal/mcp"
 )
 
 func main() {

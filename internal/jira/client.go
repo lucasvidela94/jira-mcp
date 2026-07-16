@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lucasvidela/jira-mcp/internal/config"
+	"github.com/lucasvidela94/jira-mcp/internal/config"
 )
 
 // Client is a thin, stateless Jira Cloud REST API client.

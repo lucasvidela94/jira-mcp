@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lucasvidela/jira-mcp/internal/config"
+	"github.com/lucasvidela94/jira-mcp/internal/config"
 )
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {

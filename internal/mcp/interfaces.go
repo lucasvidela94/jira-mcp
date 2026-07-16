@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	"github.com/lucasvidela/jira-mcp/internal/jira"
+	"github.com/lucasvidela94/jira-mcp/internal/jira"
 )
 
 // JiraClient is the contract the MCP server needs from a Jira client.

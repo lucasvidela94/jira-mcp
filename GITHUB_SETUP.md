@@ -4,10 +4,10 @@ After creating the repository on GitHub, follow these steps to enable releases.
 
 ## 1. Create the repository
 
-Create `https://github.com/lucasvidela/jira-mcp` as a public repository and push this code:
+Create `https://github.com/lucasvidela94/jira-mcp` as a public repository and push this code:
 
 ```bash
-git remote add origin https://github.com/lucasvidela/jira-mcp.git
+git remote add origin https://github.com/lucasvidela94/jira-mcp.git
 git branch -M main
 git push -u origin main
 ```
@@ -36,5 +36,5 @@ The workflow will:
 Users can download binaries from the release page or install with:
 
 ```bash
-go install github.com/lucasvidela/jira-mcp@latest
+go install github.com/lucasvidela94/jira-mcp@latest
 ```
