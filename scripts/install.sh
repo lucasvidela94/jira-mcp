@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Install jira-mcp from GitHub releases, Homebrew, or Go.
-# Usage: curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash
 
 REPO="lucasvidela94/jira-mcp"
 TAP="lucasvidela94/tap"
@@ -218,6 +218,10 @@ install_brew() {
     brew update && brew install jira-mcp || return 1
   fi
 
+  if has_command brew; then
+    JIRA_MCP_BIN="$(brew --prefix)/bin/jira-mcp"
+  fi
+
   log_success "installed jira-mcp via Homebrew"
   return 0
 }
@@ -347,6 +351,8 @@ install_binary() {
 
   log_success "installed ${binary} to ${dest}"
 
+  JIRA_MCP_BIN="${dest}"
+
   if ! is_in_path "${install_dir}"; then
     log_warning "${install_dir} is not in your PATH"
     log_info "add it to your shell profile:"
@@ -374,7 +380,9 @@ install_go() {
     go_bin=$(go env GOPATH)/bin
   fi
 
-  log_success "installed jira-mcp to ${go_bin}/jira-mcp"
+  JIRA_MCP_BIN="${go_bin}/jira-mcp"
+
+  log_success "installed jira-mcp to ${JIRA_MCP_BIN}"
 
   if ! is_in_path "${go_bin}"; then
     log_warning "${go_bin} is not in your PATH"
@@ -412,15 +420,16 @@ main() {
       ;;
   esac
 
-  if command -v jira-mcp >/dev/null 2>&1; then
+  local version_bin="${JIRA_MCP_BIN:-$(command -v jira-mcp 2>/dev/null || true)}"
+  if [ -n "${version_bin}" ] && [ -x "${version_bin}" ]; then
     local installed_version
-    installed_version=$(jira-mcp --version 2>/dev/null || true)
+    installed_version=$("${version_bin}" --version 2>/dev/null || true)
     if [ -n "${installed_version}" ]; then
       log_info "jira-mcp version: ${installed_version}"
     fi
   fi
 
-  log_success "jira-mcp is installed. Run 'jira-mcp --version' to verify."
+  log_success "jira-mcp is installed. Run '${JIRA_MCP_BIN:-jira-mcp} --version' to verify."
 }
 
 main

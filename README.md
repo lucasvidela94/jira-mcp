@@ -28,10 +28,10 @@ brew tap lucasvidela94/tap
 brew install jira-mcp
 
 # Or one-liner (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash
 
 # Or Windows (PowerShell)
-irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 | iex
 
 # Or Go install
 go install github.com/lucasvidela94/jira-mcp@latest
