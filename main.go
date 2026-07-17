@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +11,18 @@ import (
 	"github.com/lucasvidela94/jira-mcp/internal/mcp"
 )
 
+// version is set by goreleaser at build time.
+var version = "dev"
+
 func main() {
+	versionFlag := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println(version)
+		os.Exit(0)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %s\n", err)

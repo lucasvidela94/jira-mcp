@@ -4,7 +4,6 @@ A Model Context Protocol (MCP) server that exposes safe read/write access to Jir
 
 ## Requirements
 
-- Go 1.24.0+
 - Jira Cloud instance
 - Jira API token ([create one here](https://id.atlassian.com/manage-profile/security/api-tokens))
 
@@ -20,15 +19,90 @@ The server reads all configuration from environment variables:
 
 ## Installation
 
+### macOS / Linux
+
+```bash
+# Homebrew (recommended)
+brew tap lucasvidela94/tap
+brew install jira-mcp
+
+# Or install script
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.sh | bash
+```
+
+### Windows
+
+Download the latest binary from the [GitHub releases](https://github.com/lucasvidela94/jira-mcp/releases) page, or use `go install`.
+
+### Go install (any platform)
+
 ```bash
 go install github.com/lucasvidela94/jira-mcp@latest
 ```
 
-Or download a prebuilt binary from the [GitHub releases](https://github.com/lucasvidela94/jira-mcp/releases) page.
+## Client Configuration
 
-## Usage
+### Claude Desktop
 
-Add the server to your MCP client configuration:
+`~/.config/claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "jira-mcp",
+      "env": {
+        "JIRA_URL": "https://yourcompany.atlassian.net",
+        "JIRA_USERNAME": "you@example.com",
+        "JIRA_API_TOKEN": "your-api-token"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+`~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "command": "jira-mcp",
+      "env": {
+        "JIRA_URL": "https://yourcompany.atlassian.net",
+        "JIRA_USERNAME": "you@example.com",
+        "JIRA_API_TOKEN": "your-api-token"
+      }
+    }
+  }
+}
+```
+
+### OpenCode
+
+`~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "jira": {
+      "type": "local",
+      "command": ["jira-mcp"],
+      "environment": {
+        "JIRA_URL": "https://yourcompany.atlassian.net",
+        "JIRA_USERNAME": "you@example.com",
+        "JIRA_API_TOKEN": "your-api-token"
+      }
+    }
+  }
+}
+```
+
+### Windsurf
+
+`~/.config/windsurf/mcp_config.json`:
 
 ```json
 {
@@ -80,10 +154,11 @@ make vet
 
 ## Release
 
-Releases are built with [GoReleaser](https://goreleaser.com/):
+Releases are built with [GoReleaser](https://goreleaser.com/) and published to GitHub releases. The Homebrew formula is updated automatically.
 
 ```bash
-goreleaser release --clean
+git tag -a v0.1.0 -m "Initial release"
+git push origin v0.1.0
 ```
 
 ## Security

@@ -4,19 +4,17 @@ After creating the repository on GitHub, follow these steps to enable releases.
 
 ## 1. Create the repository
 
-Create `https://github.com/lucasvidela94/jira-mcp` as a public repository and push this code:
+Create `https://github.com/lucasvidela94/jira-mcp` as a public repository and push this code.
 
-```bash
-git remote add origin https://github.com/lucasvidela94/jira-mcp.git
-git branch -M main
-git push -u origin main
-```
+## 2. Create the Homebrew tap repository
 
-## 2. Enable workflows
+Create `https://github.com/lucasvidela94/homebrew-tap` as a public repository. GoReleaser will commit the `jira-mcp` formula to `Formula/jira-mcp.rb` on every release.
+
+## 3. Enable workflows
 
 Go to **Settings > Actions > General** and ensure "Allow all actions and reusable workflows" is selected.
 
-## 3. Create a release
+## 4. Create a release
 
 Tag a commit and push the tag. The release workflow will run GoReleaser automatically:
 
@@ -30,11 +28,29 @@ The workflow will:
 - Run `go test -race ./...`
 - Build binaries for darwin/linux/windows on amd64 and arm64
 - Publish a GitHub release with archives and a checksum file
+- Update the Homebrew tap formula
 
-## 4. Install from release
+## 5. Install from release
 
-Users can download binaries from the release page or install with:
+### Homebrew
+
+```bash
+brew tap lucasvidela94/tap
+brew install jira-mcp
+```
+
+### Install script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.sh | bash
+```
+
+### Go install
 
 ```bash
 go install github.com/lucasvidela94/jira-mcp@latest
 ```
+
+### Manual download
+
+Download binaries from the [GitHub releases](https://github.com/lucasvidela94/jira-mcp/releases) page.

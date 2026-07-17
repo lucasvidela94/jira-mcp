@@ -39,3 +39,19 @@ changelog:
       - '^docs:'
       - '^test:'
       - '^ci:'
+
+brews:
+  - name: jira-mcp
+    repository:
+      owner: lucasvidela94
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/lucasvidela94/jira-mcp
+    description: MCP server for Jira Cloud
+    license: MIT
+    install: |
+      bin.install "jira-mcp"
+    test: |
+      system "#{bin}/jira-mcp", "--version"
