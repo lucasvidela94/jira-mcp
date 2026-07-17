@@ -39,6 +39,9 @@
 
 .PARAMETER Yes
     Skip confirmations.
+
+.PARAMETER Inspect
+    Download and print this script, then exit.
 #>
 
 [CmdletBinding()]
@@ -52,7 +55,8 @@ param(
     [string]$JiraUrl = "",
     [string]$JiraUsername = "",
     [string]$JiraApiToken = "",
-    [switch]$Yes
+    [switch]$Yes,
+    [switch]$Inspect
 )
 
 $Repo = "lucasvidela94/jira-mcp"
@@ -84,6 +88,27 @@ function Get-Architecture {
         "AMD64" { return "amd64" }
         "ARM64" { return "arm64" }
         default { Write-ErrorAndExit "unsupported architecture: $($env:PROCESSOR_ARCHITECTURE)" }
+    }
+}
+
+function Write-SecurityNotice {
+    Write-Info "Security notes:"
+    Write-Info "  - This script is open source. Inspect it with: -Inspect"
+    Write-Info "  - Your Jira API token is stored locally in your MCP client config file."
+    Write-Info "  - The token is never sent anywhere except to your Jira instance."
+    Write-Info "  - Prefer interactive prompts so the token is not saved to shell history."
+    Write-Info "  - Create or verify API tokens: https://id.atlassian.com/manage-profile/security/api-tokens"
+}
+
+function Invoke-InspectScript {
+    $url = "https://raw.githubusercontent.com/$Repo/master/scripts/install.ps1"
+    try {
+        $script = Invoke-WebRequest -Uri $url -UseBasicParsing | Select-Object -ExpandProperty Content
+        Write-Host $script
+        exit 0
+    }
+    catch {
+        Write-ErrorAndExit "could not download script for inspection: $_"
     }
 }
 
@@ -296,6 +321,30 @@ function Write-ClientConfig {
     }
 
     $data | ConvertTo-Json -Depth 10 | Set-Content -Path $Path
+
+    try {
+        $acl = Get-Acl -Path $Path
+        $acl.SetAccessRuleProtection($true, $false)
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, "Read,Write", "Allow")
+        $acl.SetAccessRule($rule)
+        Set-Acl -Path $Path -AclObject $acl
+    }
+    catch {
+        Write-Warning "could not restrict permissions on ${Path}: $_"
+    }
+
+    if ($fileExisted) {
+        try {
+            $bakAcl = Get-Acl -Path "${Path}.bak"
+            $bakAcl.SetAccessRuleProtection($true, $false)
+            $bakRule = New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, "Read,Write", "Allow")
+            $bakAcl.SetAccessRule($bakRule)
+            Set-Acl -Path "${Path}.bak" -AclObject $bakAcl
+        }
+        catch {
+            Write-Warning "could not restrict permissions on ${Path}.bak: $_"
+        }
+    }
 }
 
 function Test-Interactive {
@@ -318,6 +367,10 @@ function Configure-Client {
     # value was supplied up front or if the user explicitly forced configuration.
     if (-not $Configure -and -not (Test-Interactive) -and -not $allProvided) { return }
 
+    if (Test-Interactive) {
+        Write-SecurityNotice
+    }
+
     if (-not $Client) {
         if (-not (Test-Interactive)) { return }
         Prompt-Client
@@ -337,6 +390,7 @@ function Configure-Client {
     Prompt-JiraUsername
 
     if (-not $JiraApiToken -and -not (Test-Interactive)) { return }
+    Write-Info "If you don't have a Jira API token yet, create one at: https://id.atlassian.com/manage-profile/security/api-tokens"
     Prompt-JiraApiToken
 
     $configPath = Get-ConfigPath -Client $Client
@@ -356,6 +410,10 @@ function Configure-Client {
     }
     Write-Info "You can verify with: jira-mcp --version"
     Write-Info "Create or verify API tokens: https://id.atlassian.com/manage-profile/security/api-tokens"
+}
+
+if ($Inspect) {
+    Invoke-InspectScript
 }
 
 $os = "windows"

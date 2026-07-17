@@ -73,6 +73,7 @@ JIRA_URL_ARG="${JIRA_URL:-}"
 JIRA_USERNAME_ARG="${JIRA_USERNAME:-}"
 JIRA_API_TOKEN_ARG="${JIRA_API_TOKEN:-}"
 YES="${INSTALL_YES:-}"
+INSPECT="${INSTALL_INSPECT:-}"
 
 usage() {
   cat <<EOF
@@ -93,6 +94,7 @@ Options:
   --jira-username <email>     Jira username/email (env: JIRA_USERNAME)
   --jira-api-token <token>    Jira API token (env: JIRA_API_TOKEN)
   --yes, -y                   Skip confirmations (env: INSTALL_YES=1)
+  --inspect                   Download and print this script, then exit (env: INSTALL_INSPECT=1)
   --help, -h                  Show this help message
 
 Defaults:
@@ -157,6 +159,10 @@ while [ $# -gt 0 ]; do
       ;;
     --yes|-y)
       YES="1"
+      shift
+      ;;
+    --inspect)
+      INSPECT="1"
       shift
       ;;
     -h|--help)
@@ -525,6 +531,7 @@ prompt_jira_api_token() {
     return 0
   fi
   local input
+  log_info "If you don't have a Jira API token yet, create one at: https://id.atlassian.com/manage-profile/security/api-tokens"
   printf "Jira API token: "
   if ! read -rs input; then
     echo
@@ -650,6 +657,13 @@ PYEOF
     log_error "python3 or python is required to write configuration files"
     exit 1
   fi
+
+  if [ -f "${path}" ]; then
+    chmod 600 "${path}" || log_warning "could not restrict permissions on ${path}"
+  fi
+  if [ -f "${path}.bak" ]; then
+    chmod 600 "${path}.bak" || log_warning "could not restrict permissions on ${path}.bak"
+  fi
 }
 
 configure_client() {
@@ -670,6 +684,10 @@ configure_client() {
   # supplied up front or if the user explicitly forced configuration.
   if [ -z "${CONFIGURE}" ] && [ ! -t 0 ] && [ "${all_provided}" -ne 1 ]; then
     return 0
+  fi
+
+  if [ -t 0 ]; then
+    print_security_notice
   fi
 
   if [ -z "${CLIENT}" ]; then
@@ -724,10 +742,41 @@ configure_client() {
 }
 
 # ---------------------------------------------------------------------------
+# Security notice
+# ---------------------------------------------------------------------------
+
+print_security_notice() {
+  log_info "Security notes:"
+  log_info "  - This script is open source. Inspect it with: --inspect"
+  log_info "  - Your Jira API token is stored locally in your MCP client config file."
+  log_info "  - The token is never sent anywhere except to your Jira instance."
+  log_info "  - Prefer interactive prompts so the token is not saved to shell history."
+  log_info "  - Create or verify API tokens: https://id.atlassian.com/manage-profile/security/api-tokens"
+}
+
+# ---------------------------------------------------------------------------
+# Inspect mode
+# ---------------------------------------------------------------------------
+
+inspect_script() {
+  local url="https://raw.githubusercontent.com/${REPO}/master/scripts/install.sh"
+  if ! has_command curl; then
+    log_error "curl is required to download the script for inspection"
+    exit 1
+  fi
+  curl -fsSL "${url}"
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 main() {
+  if [ -n "${INSPECT}" ]; then
+    inspect_script
+    exit 0
+  fi
+
   case "${METHOD}" in
     brew)
       install_brew

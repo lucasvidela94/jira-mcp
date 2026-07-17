@@ -85,6 +85,22 @@ go install github.com/lucasvidela94/jira-mcp@latest
 
 This installs the binary only; you will still need to configure your MCP client manually.
 
+### Review the installer before running it
+
+If you prefer to inspect the script instead of piping it directly to your shell:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh -o install.sh
+# Review the file, then run it:
+bash install.sh
+```
+
+Or use the built-in inspect flag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- --inspect
+```
+
 ## Configuration
 
 Set these environment variables:
@@ -215,7 +231,11 @@ The Homebrew formula at `lucasvidela94/homebrew-tap` updates automatically.
 
 ## Security
 
-Credentials are only sent in the HTTP `Authorization` header. They are never logged, included in error messages, or returned in tool results.
+- **In transit**: Your Jira API token is sent only to your Jira Cloud instance in the HTTP `Authorization` header.
+- **In logs**: Credentials are never logged, included in error messages, or returned in tool results.
+- **On disk**: The MCP client stores the token in its local config file. The installer sets `chmod 600` (Linux/macOS) or restricts ACLs to your user (Windows) on that file.
+- **Review**: The installer is open source. You can inspect it before running with `--inspect` or by downloading it to a file first.
+- **Token creation**: Create or verify your Jira API token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
 ## License
 
