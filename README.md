@@ -26,18 +26,33 @@ The server reads all configuration from environment variables:
 brew tap lucasvidela94/tap
 brew install jira-mcp
 
-# Or install script
+# Or install script (curl) — no brew required
 curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.sh | bash
+
+# Or go install (requires Go)
+go install github.com/lucasvidela94/jira-mcp@latest
 ```
 
 ### Windows
 
-Download the latest binary from the [GitHub releases](https://github.com/lucasvidela94/jira-mcp/releases) page, or use `go install`.
+```powershell
+# PowerShell install script
+irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/main/scripts/install.ps1 | iex
 
-### Go install (any platform)
+# Or go install (requires Go)
+go install github.com/lucasvidela94/jira-mcp@latest
+```
+
+### Arch Linux
+
+Arch Linux is supported by the curl install script above — no Homebrew needed.
+
+### Verify the installation
+
+After installing, run:
 
 ```bash
-go install github.com/lucasvidela94/jira-mcp@latest
+jira-mcp --version
 ```
 
 ## Client Configuration
