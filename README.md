@@ -20,22 +20,70 @@ Model Context Protocol (MCP) server for Jira Cloud. Lets you search, create, upd
 - **Safe by design** — credentials are never logged, returned, or leaked
 - **Multi-platform** — macOS, Linux, Windows, ARM64
 
-## Quick Start
+## Installation
+
+### Homebrew (macOS / Linux)
 
 ```bash
-# Homebrew (macOS / Linux)
 brew tap lucasvidela94/tap
 brew install jira-mcp
+```
 
-# Or one-liner (macOS / Linux)
+### One-liner installer (macOS / Linux)
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash
+```
 
-# Or Windows (PowerShell)
+The installer can optionally configure your MCP client automatically. When run in a terminal, it asks which client you want to set up, prompts for your Jira URL, username, and API token, and writes the correct configuration file.
+
+Example interactive flow:
+
+```text
+Which MCP client do you want to configure? [opencode/claude/cursor/windsurf/none] (default: opencode):
+Jira URL (e.g. https://yourcompany.atlassian.net): https://yourcompany.atlassian.net
+Jira username/email: you@example.com
+Jira API token:
+Proceed? [Y/n] y
+```
+
+Skip the wizard or pass the answers as flags:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- --no-configure
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- \
+  --client opencode \
+  --jira-url https://yourcompany.atlassian.net \
+  --jira-username you@example.com \
+  --jira-api-token your-api-token \
+  --yes
+```
+
+Create or verify your Jira API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+### Windows (PowerShell)
+
+```powershell
 irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 | iex
+```
 
-# Or Go install
+The PowerShell installer supports the same optional auto-configuration when run interactively. To force or skip the wizard, or to pass the values as parameters, save the script first:
+
+```powershell
+irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 -OutFile install.ps1
+.\install.ps1 -Configure -Client opencode -JiraUrl https://yourcompany.atlassian.net -JiraUsername you@example.com -JiraApiToken your-api-token -Yes
+```
+
+### Go install
+
+```bash
 go install github.com/lucasvidela94/jira-mcp@latest
 ```
+
+This installs the binary only; you will still need to configure your MCP client manually.
 
 ## Configuration
 

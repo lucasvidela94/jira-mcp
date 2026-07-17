@@ -67,6 +67,12 @@ INSTALL_DIR="${INSTALL_DIR:-}"
 VERSION="${INSTALL_VERSION:-}"
 INSECURE="${INSTALL_INSECURE:-}"
 SUDO="${INSTALL_SUDO:-}"
+CONFIGURE="${INSTALL_CONFIGURE:-}"
+CLIENT="${INSTALL_CLIENT:-}"
+JIRA_URL_ARG="${JIRA_URL:-}"
+JIRA_USERNAME_ARG="${JIRA_USERNAME:-}"
+JIRA_API_TOKEN_ARG="${JIRA_API_TOKEN:-}"
+YES="${INSTALL_YES:-}"
 
 usage() {
   cat <<EOF
@@ -80,6 +86,13 @@ Options:
   --version <version>         Version to install, e.g. v1.2.3 (env: INSTALL_VERSION)
   --insecure                  Skip checksum verification (env: INSTALL_INSECURE=1)
   --sudo                      Use sudo for system directories (env: INSTALL_SUDO=1)
+  --configure                 Run MCP client configuration wizard (env: INSTALL_CONFIGURE=1)
+  --no-configure              Skip configuration wizard (env: INSTALL_CONFIGURE=0)
+  --client <name>             Pre-select MCP client: opencode, claude, cursor, windsurf (env: INSTALL_CLIENT)
+  --jira-url <url>            Jira URL (env: JIRA_URL)
+  --jira-username <email>     Jira username/email (env: JIRA_USERNAME)
+  --jira-api-token <token>    Jira API token (env: JIRA_API_TOKEN)
+  --yes, -y                   Skip confirmations (env: INSTALL_YES=1)
   --help, -h                  Show this help message
 
 Defaults:
@@ -112,6 +125,38 @@ while [ $# -gt 0 ]; do
       ;;
     --sudo)
       SUDO="1"
+      shift
+      ;;
+    --configure)
+      CONFIGURE="1"
+      shift
+      ;;
+    --no-configure)
+      CONFIGURE="0"
+      shift
+      ;;
+    --client)
+      [ $# -ge 2 ] || { log_error "--client requires an argument"; exit 1; }
+      CLIENT="$2"
+      shift 2
+      ;;
+    --jira-url)
+      [ $# -ge 2 ] || { log_error "--jira-url requires an argument"; exit 1; }
+      JIRA_URL_ARG="$2"
+      shift 2
+      ;;
+    --jira-username)
+      [ $# -ge 2 ] || { log_error "--jira-username requires an argument"; exit 1; }
+      JIRA_USERNAME_ARG="$2"
+      shift 2
+      ;;
+    --jira-api-token)
+      [ $# -ge 2 ] || { log_error "--jira-api-token requires an argument"; exit 1; }
+      JIRA_API_TOKEN_ARG="$2"
+      shift 2
+      ;;
+    --yes|-y)
+      YES="1"
       shift
       ;;
     -h|--help)
@@ -394,6 +439,291 @@ install_go() {
 }
 
 # ---------------------------------------------------------------------------
+# Configuration wizard
+# ---------------------------------------------------------------------------
+
+is_valid_client() {
+  case "$1" in
+    opencode|claude|cursor|windsurf) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+get_config_path() {
+  local client="$1"
+  local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
+  case "${client}" in
+    opencode) printf '%s\n' "${config_home}/opencode/opencode.json" ;;
+    claude) printf '%s\n' "${config_home}/claude/claude_desktop_config.json" ;;
+    cursor) printf '%s\n' "${HOME}/.cursor/mcp.json" ;;
+    windsurf) printf '%s\n' "${config_home}/windsurf/mcp_config.json" ;;
+  esac
+}
+
+prompt_client() {
+  if [ -n "${CLIENT}" ]; then
+    return 0
+  fi
+  local input
+  printf "Which MCP client do you want to configure? [opencode/claude/cursor/windsurf/none] (default: opencode): "
+  if ! read -r input; then
+    log_info "EOF detected; skipping configuration"
+    CLIENT="none"
+    return
+  fi
+  if [ -z "${input}" ]; then
+    input="opencode"
+  fi
+  case "${input}" in
+    opencode|claude|cursor|windsurf) CLIENT="${input}" ;;
+    none|skip) CLIENT="none" ;;
+    *)
+      log_error "invalid client: ${input}"
+      prompt_client
+      ;;
+  esac
+}
+
+prompt_jira_url() {
+  if [ -n "${JIRA_URL_ARG}" ]; then
+    return 0
+  fi
+  local input
+  printf "Jira URL (e.g. https://yourcompany.atlassian.net): "
+  if ! read -r input; then
+    log_info "EOF detected; skipping configuration"
+    return 1
+  fi
+  if [[ "${input}" != http://* ]] && [[ "${input}" != https://* ]]; then
+    log_error "Jira URL must start with http:// or https://"
+    prompt_jira_url
+  else
+    JIRA_URL_ARG="${input}"
+  fi
+}
+
+prompt_jira_username() {
+  if [ -n "${JIRA_USERNAME_ARG}" ]; then
+    return 0
+  fi
+  local input
+  printf "Jira username/email: "
+  if ! read -r input; then
+    log_info "EOF detected; skipping configuration"
+    return 1
+  fi
+  if [[ "${input}" != *@* ]]; then
+    log_error "Username must contain '@'"
+    prompt_jira_username
+  else
+    JIRA_USERNAME_ARG="${input}"
+  fi
+}
+
+prompt_jira_api_token() {
+  if [ -n "${JIRA_API_TOKEN_ARG}" ]; then
+    return 0
+  fi
+  local input
+  printf "Jira API token: "
+  if ! read -rs input; then
+    echo
+    log_info "EOF detected; skipping configuration"
+    return 1
+  fi
+  echo
+  if [ -z "${input}" ]; then
+    log_error "API token is required"
+    prompt_jira_api_token
+  else
+    JIRA_API_TOKEN_ARG="${input}"
+  fi
+}
+
+confirm_write() {
+  local config_path="$1"
+  if [ -n "${YES}" ]; then
+    return 0
+  fi
+  local input
+  printf "\nWill write jira-mcp configuration for %s at %s\n" "${CLIENT}" "${config_path}"
+  printf "Jira URL: %s\n" "${JIRA_URL_ARG}"
+  printf "Username: %s\n" "${JIRA_USERNAME_ARG}"
+  printf "API token: <hidden>\n"
+  printf "Proceed? [Y/n] "
+  if ! read -r input; then
+    return 1
+  fi
+  case "${input}" in
+    n|N|no|No) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+write_config() {
+  local client="$1"
+  local path="$2"
+  local url="$3"
+  local username="$4"
+  local token="$5"
+
+  local dir
+  dir=$(dirname "${path}")
+  if ! ensure_dir "${dir}"; then
+    log_error "could not create directory: ${dir}"
+    exit 1
+  fi
+
+  local python_script
+  python_script=$(cat <<'PYEOF'
+import json, sys, os, shutil
+
+path = sys.argv[1]
+client = sys.argv[2]
+url = sys.argv[3]
+username = sys.argv[4]
+token = sys.argv[5]
+
+if client == 'opencode':
+    new_entry = {
+        'mcp': {
+            'jira': {
+                'type': 'local',
+                'command': ['jira-mcp'],
+                'environment': {
+                    'JIRA_URL': url,
+                    'JIRA_USERNAME': username,
+                    'JIRA_API_TOKEN': token
+                }
+            }
+        }
+    }
+else:
+    new_entry = {
+        'mcpServers': {
+            'jira': {
+                'command': 'jira-mcp',
+                'env': {
+                    'JIRA_URL': url,
+                    'JIRA_USERNAME': username,
+                    'JIRA_API_TOKEN': token
+                }
+            }
+        }
+    }
+
+data = None
+file_existed = os.path.exists(path)
+if file_existed:
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"error: could not parse existing config at {path}: {e}", file=sys.stderr)
+        print("Please fix the existing config manually. The new jira entry would be:", file=sys.stderr)
+        print(json.dumps(new_entry, indent=2))
+        sys.exit(1)
+
+if data is None:
+    data = {}
+
+for key, value in new_entry.items():
+    if key in data and isinstance(data[key], dict) and isinstance(value, dict):
+        data[key].update(value)
+    else:
+        data[key] = value
+
+if file_existed:
+    shutil.copy2(path, path + '.bak')
+
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+PYEOF
+)
+
+  if has_command python3; then
+    python3 -c "${python_script}" "${path}" "${client}" "${url}" "${username}" "${token}"
+  elif has_command python; then
+    python -c "${python_script}" "${path}" "${client}" "${url}" "${username}" "${token}"
+  else
+    log_error "python3 or python is required to write configuration files"
+    exit 1
+  fi
+}
+
+configure_client() {
+  if [ "${CONFIGURE:-}" = "0" ]; then
+    return 0
+  fi
+
+  if [ -n "${CLIENT}" ] && { [ "${CLIENT}" = "none" ] || [ "${CLIENT}" = "skip" ]; }; then
+    return 0
+  fi
+
+  local all_provided=0
+  if [ -n "${CLIENT}" ] && [ -n "${JIRA_URL_ARG}" ] && [ -n "${JIRA_USERNAME_ARG}" ] && [ -n "${JIRA_API_TOKEN_ARG}" ]; then
+    all_provided=1
+  fi
+
+  # Without a TTY we cannot prompt; proceed only if every required value was
+  # supplied up front or if the user explicitly forced configuration.
+  if [ -z "${CONFIGURE}" ] && [ ! -t 0 ] && [ "${all_provided}" -ne 1 ]; then
+    return 0
+  fi
+
+  if [ -z "${CLIENT}" ]; then
+    if [ ! -t 0 ]; then
+      return 0
+    fi
+    prompt_client
+  fi
+
+  if [ "${CLIENT}" = "none" ] || [ "${CLIENT}" = "skip" ]; then
+    return 0
+  fi
+
+  if ! is_valid_client "${CLIENT}"; then
+    log_error "invalid client: ${CLIENT}"
+    return 1
+  fi
+
+  if [ -z "${JIRA_URL_ARG}" ] && [ ! -t 0 ]; then
+    return 0
+  fi
+  prompt_jira_url || return 0
+
+  if [ -z "${JIRA_USERNAME_ARG}" ] && [ ! -t 0 ]; then
+    return 0
+  fi
+  prompt_jira_username || return 0
+
+  if [ -z "${JIRA_API_TOKEN_ARG}" ] && [ ! -t 0 ]; then
+    return 0
+  fi
+  prompt_jira_api_token || return 0
+
+  local config_path
+  config_path=$(get_config_path "${CLIENT}")
+
+  # If every value was provided non-interactively, treat that as confirmation
+  # because we cannot prompt; otherwise respect --yes or ask.
+  if [ "${all_provided}" -ne 1 ] && ! confirm_write "${config_path}"; then
+    log_info "configuration skipped"
+    return 0
+  fi
+
+  write_config "${CLIENT}" "${config_path}" "${JIRA_URL_ARG}" "${JIRA_USERNAME_ARG}" "${JIRA_API_TOKEN_ARG}"
+
+  log_success "Configured jira-mcp for ${CLIENT} at ${config_path}"
+  if [ -f "${config_path}.bak" ]; then
+    log_info "Backed up previous config to ${config_path}.bak"
+  fi
+  log_info "You can verify with: jira-mcp --version"
+  log_info "Create or verify API tokens: https://id.atlassian.com/manage-profile/security/api-tokens"
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -419,6 +749,8 @@ main() {
       exit 1
       ;;
   esac
+
+  configure_client
 
   local version_bin="${JIRA_MCP_BIN:-$(command -v jira-mcp 2>/dev/null || true)}"
   if [ -n "${version_bin}" ] && [ -x "${version_bin}" ]; then
