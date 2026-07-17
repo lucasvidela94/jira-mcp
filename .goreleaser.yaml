@@ -45,7 +45,7 @@ brews:
     repository:
       owner: lucasvidela94
       name: homebrew-tap
-      branch: main
+      branch: master
       token: "{{ .Env.GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/lucasvidela94/jira-mcp
