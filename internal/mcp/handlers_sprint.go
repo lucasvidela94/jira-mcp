@@ -26,7 +26,7 @@ func (s *Server) handleListSprints(ctx context.Context, request mcp.CallToolRequ
 	if err != nil {
 		return handleClientError(err), nil
 	}
-	return resultJSON(sprints)
+	return resultJSON(map[string]any{"sprints": sprints})
 }
 
 func (s *Server) handleGetSprint(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -89,5 +89,5 @@ func (s *Server) handleSearchSprintByName(ctx context.Context, request mcp.CallT
 	if err != nil {
 		return handleClientError(err), nil
 	}
-	return resultJSON(sprints)
+	return resultJSON(map[string]any{"sprints": sprints})
 }

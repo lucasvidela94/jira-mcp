@@ -60,7 +60,7 @@ func (s *Server) handleListProjects(ctx context.Context, request mcp.CallToolReq
 	if err != nil {
 		return handleClientError(err), nil
 	}
-	return resultJSON(projects)
+	return resultJSON(map[string]any{"projects": projects})
 }
 
 func (s *Server) handleGetTransitions(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -73,5 +73,5 @@ func (s *Server) handleGetTransitions(ctx context.Context, request mcp.CallToolR
 	if err != nil {
 		return handleClientError(err), nil
 	}
-	return resultJSON(transitions)
+	return resultJSON(map[string]any{"transitions": transitions})
 }

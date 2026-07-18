@@ -285,6 +285,9 @@ func TestHandleListProjects(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "\"projects\"") {
+		t.Errorf("expected result to wrap projects, got %s", text)
+	}
 	if !contains(text, "PROJ") {
 		t.Errorf("expected result to contain PROJ, got %s", text)
 	}
@@ -303,6 +306,9 @@ func TestHandleGetTransitions(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "\"transitions\"") {
+		t.Errorf("expected result to wrap transitions, got %s", text)
+	}
 	if !contains(text, "In Progress") {
 		t.Errorf("expected result to contain In Progress, got %s", text)
 	}
@@ -421,6 +427,9 @@ func TestHandleListSprints(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "\"sprints\"") {
+		t.Errorf("expected result to wrap sprints, got %s", text)
+	}
 	if !contains(text, "Sprint 1") {
 		t.Errorf("expected result to contain Sprint 1, got %s", text)
 	}
@@ -535,6 +544,9 @@ func TestHandleSearchSprintByName(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "\"sprints\"") {
+		t.Errorf("expected result to wrap sprints, got %s", text)
+	}
 	if !contains(text, "Sprint 1") || !contains(text, "sprint 2") {
 		t.Errorf("expected result to contain both sprints, got %s", text)
 	}
