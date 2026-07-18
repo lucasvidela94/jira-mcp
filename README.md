@@ -17,8 +17,11 @@ Model Context Protocol (MCP) server for Jira Cloud. Lets you search, create, upd
 - **Add comments** and **log work**
 - **JQL search** with configurable result limits
 - **List projects** and **available transitions**
+- **Sprint management** — list, get, and search Jira Agile sprints
 - **Safe by design** — credentials are never logged, returned, or leaked
 - **Multi-platform** — macOS, Linux, Windows, ARM64
+- **Docker-ready** — minimal `scratch` image
+- **HTTP/SSE transport** — run as a remote MCP server on a trusted network
 
 ## Installation
 
@@ -63,6 +66,39 @@ curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scrip
 ```
 
 Create or verify your Jira API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+### Docker
+
+Build the image locally:
+
+```bash
+docker build -t jira-mcp .
+```
+
+Run with your Jira credentials:
+
+```bash
+docker run -e JIRA_URL=https://yourcompany.atlassian.net \
+  -e JIRA_USERNAME=you@example.com \
+  -e JIRA_API_TOKEN=your-api-token \
+  jira-mcp
+```
+
+To use the HTTP/SSE transport inside a container:
+
+```bash
+docker run -p 8080:8080 \
+  -e JIRA_URL=https://yourcompany.atlassian.net \
+  -e JIRA_USERNAME=you@example.com \
+  -e JIRA_API_TOKEN=your-api-token \
+  jira-mcp --transport http --port 8080
+```
+
+The published image is available from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/lucasvidela94/jira-mcp:latest
+```
 
 ### Windows (PowerShell)
 
@@ -205,6 +241,23 @@ Set these environment variables:
 | `jira_get_transitions` | List available transitions |
 | `jira_add_comment` | Add a comment to an issue |
 | `jira_add_worklog` | Log time against an issue |
+| `jira_list_sprints` | List sprints for a Jira Agile board |
+| `jira_get_sprint` | Get a sprint by its Agile ID |
+| `jira_get_active_sprint` | Get the active sprint for a board |
+| `jira_search_sprint_by_name` | Search sprints by name on a board |
+
+## HTTP/SSE Transport
+
+By default the binary speaks MCP over `stdio`. You can also run it as an HTTP/SSE server:
+
+```bash
+jira-mcp --transport http --port 8080
+```
+
+- `GET /sse` is the Server-Sent Events endpoint.
+- `POST /message` is the client message endpoint.
+
+> **Warning:** The HTTP/SSE transport carries no built-in authentication. Run it only on trusted networks and protect the endpoint with your own reverse proxy or VPN.
 
 ## Development
 

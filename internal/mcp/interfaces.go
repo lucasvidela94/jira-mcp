@@ -20,6 +20,10 @@ type JiraClient interface {
 	GetTransitions(ctx context.Context, key string) ([]jira.Transition, error)
 	AddComment(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error)
 	AddWorklog(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error)
+	ListSprints(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error)
+	GetSprint(ctx context.Context, sprintID string) (*jira.Sprint, error)
+	GetActiveSprint(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error)
+	SearchSprintByName(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error)
 }
 
 // Ensure the concrete client satisfies the interface.

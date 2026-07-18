@@ -91,3 +91,35 @@ func addWorklogTool() mcp.Tool {
 		mcp.WithString("started", mcp.Description("Optional start time in ISO-8601")),
 	)
 }
+
+func listSprintsTool() mcp.Tool {
+	return mcp.NewTool("jira_list_sprints",
+		mcp.WithDescription("List sprints for a Jira Agile board."),
+		mcp.WithString("board_id", mcp.Description("Board identifier"), mcp.Required()),
+		mcp.WithNumber("max_results", mcp.Description("Maximum number of sprints to return")),
+	)
+}
+
+func getSprintTool() mcp.Tool {
+	return mcp.NewTool("jira_get_sprint",
+		mcp.WithDescription("Get a Jira Agile sprint by its ID."),
+		mcp.WithString("sprint_id", mcp.Description("Sprint identifier"), mcp.Required()),
+	)
+}
+
+func getActiveSprintTool() mcp.Tool {
+	return mcp.NewTool("jira_get_active_sprint",
+		mcp.WithDescription("Get the active sprint for a Jira Agile board."),
+		mcp.WithString("board_id", mcp.Description("Board identifier"), mcp.Required()),
+		mcp.WithNumber("max_results", mcp.Description("Maximum number of sprints to search")),
+	)
+}
+
+func searchSprintByNameTool() mcp.Tool {
+	return mcp.NewTool("jira_search_sprint_by_name",
+		mcp.WithDescription("Search sprints by name on a Jira Agile board (case-insensitive substring)."),
+		mcp.WithString("board_id", mcp.Description("Board identifier"), mcp.Required()),
+		mcp.WithString("name", mcp.Description("Substring to match against sprint names"), mcp.Required()),
+		mcp.WithNumber("max_results", mcp.Description("Maximum number of sprints to search")),
+	)
+}

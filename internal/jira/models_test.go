@@ -242,3 +242,60 @@ func TestAddWorklogRequest_Marshal(t *testing.T) {
 		t.Errorf("expected started, got %v", raw["started"])
 	}
 }
+
+func TestSprint_Unmarshal(t *testing.T) {
+	payload := `{
+		"id": 123,
+		"self": "https://jira/rest/agile/1.0/sprint/123",
+		"state": "active",
+		"name": "Sprint 1",
+		"startDate": "2026-07-01T10:00:00.000Z",
+		"endDate": "2026-07-15T10:00:00.000Z",
+		"originBoardId": 42
+	}`
+
+	var sp Sprint
+	if err := json.Unmarshal([]byte(payload), &sp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if sp.ID != 123 {
+		t.Errorf("expected id 123, got %d", sp.ID)
+	}
+	if sp.Name != "Sprint 1" {
+		t.Errorf("expected name Sprint 1, got %s", sp.Name)
+	}
+	if sp.State != "active" {
+		t.Errorf("expected state active, got %s", sp.State)
+	}
+	if sp.OriginBoardID != 42 {
+		t.Errorf("expected origin board id 42, got %d", sp.OriginBoardID)
+	}
+}
+
+func TestSprintListResponse_Unmarshal(t *testing.T) {
+	payload := `{
+		"maxResults": 50,
+		"startAt": 0,
+		"isLast": true,
+		"values": [
+			{"id": 1, "name": "Sprint 1", "state": "active"},
+			{"id": 2, "name": "Sprint 2", "state": "future"}
+		]
+	}`
+
+	var res SprintListResponse
+	if err := json.Unmarshal([]byte(payload), &res); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if len(res.Values) != 2 {
+		t.Fatalf("expected 2 sprints, got %d", len(res.Values))
+	}
+	if res.Values[0].Name != "Sprint 1" {
+		t.Errorf("expected Sprint 1, got %s", res.Values[0].Name)
+	}
+	if res.Values[1].State != "future" {
+		t.Errorf("expected future state, got %s", res.Values[1].State)
+	}
+}

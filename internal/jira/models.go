@@ -141,6 +141,30 @@ type WorklogResponse struct {
 	TimeSpent string `json:"timeSpent"`
 }
 
+// Sprint represents a Jira Agile sprint.
+type Sprint struct {
+	ID            int    `json:"id"`
+	Self          string `json:"self"`
+	State         string `json:"state"`
+	Name          string `json:"name"`
+	StartDate     string `json:"startDate,omitempty"`
+	EndDate       string `json:"endDate,omitempty"`
+	CompleteDate  string `json:"completeDate,omitempty"`
+	OriginBoardID int    `json:"originBoardId,omitempty"`
+	Goal          string `json:"goal,omitempty"`
+}
+
+// SprintList is a slice of Sprint values used when a handler returns multiple sprints.
+type SprintList []Sprint
+
+// SprintListResponse is the paginated response from the Jira Agile sprint list endpoints.
+type SprintListResponse struct {
+	MaxResults int        `json:"maxResults"`
+	StartAt    int        `json:"startAt"`
+	IsLast     bool       `json:"isLast"`
+	Values     SprintList `json:"values"`
+}
+
 // jiraErrorResponse is the shape of Jira error payloads.
 type jiraErrorResponse struct {
 	ErrorMessages   []string `json:"errorMessages"`

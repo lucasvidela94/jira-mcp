@@ -1,0 +1,50 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Go 1.24 CLI using mark3labs/mcp-go; Jira Cloud REST API v3 client.
+  Architecture: stdio MCP server. Packages: internal/config (env), internal/jira (HTTP client), internal/mcp (tool handlers). Interface JiraClient decouples handlers from the real client.
+  Testing: Standard Go tests with httptest for the Jira client and fakes for handler tests.
+  Style: gofmt; go vet; no third-party linter. GoReleaser builds releases on tag push.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Note impact on Homebrew formula and install scripts if release artifacts change
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Preserve existing package seams (internal/config, internal/jira, internal/mcp)
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns
+    tdd: true
+    test_command: "go test ./..."
+  verify:
+    test_command: "go test ./..."
+    build_command: "go build ./..."
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: true
+  detected: "2026-07-17"
+  runner:
+    command: "go test ./..."
+    framework: "go test"
+  layers:
+    unit: true
+    integration: true
+    e2e: false
+  coverage:
+    available: true
+    command: "go test -cover ./..."
+  quality:
+    linter: "go vet ./..."
+    type_checker: "go build ./..."
+    formatter: "gofmt -w ."

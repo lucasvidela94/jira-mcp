@@ -1,8 +1,15 @@
 package mcp
 
 import (
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
 // Server wraps the mcp-go server and Jira client.
@@ -30,7 +37,32 @@ func (s *Server) ServeStdio() error {
 	return mcpserver.ServeStdio(s.mcp)
 }
 
-// registerTools adds the 11 Jira tools to the MCP server.
+// ServeSSE starts the HTTP/SSE MCP server on the given address.
+// It blocks until the server is interrupted or returns an error.
+func (s *Server) ServeSSE(addr string) error {
+	sseServer := mcpserver.NewSSEServer(s.mcp)
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := sseServer.Start(addr); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-sigCh:
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return sseServer.Shutdown(ctx)
+	}
+}
+
+// registerTools adds the 15 Jira tools to the MCP server.
 func (s *Server) registerTools() {
 	for _, st := range s.toolDefinitions() {
 		s.mcp.AddTool(st.tool, st.handler)
@@ -51,6 +83,10 @@ func (s *Server) toolDefinitions() []serverTool {
 		{tool: getTransitionsTool(), handler: s.handleGetTransitions},
 		{tool: addCommentTool(), handler: s.handleAddComment},
 		{tool: addWorklogTool(), handler: s.handleAddWorklog},
+		{tool: listSprintsTool(), handler: s.handleListSprints},
+		{tool: getSprintTool(), handler: s.handleGetSprint},
+		{tool: getActiveSprintTool(), handler: s.handleGetActiveSprint},
+		{tool: searchSprintByNameTool(), handler: s.handleSearchSprintByName},
 	}
 }
 

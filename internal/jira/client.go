@@ -33,6 +33,13 @@ func WithMaxResults(max int) Option {
 	}
 }
 
+// WithState filters sprints by state (e.g. active, future, closed).
+func WithState(state string) Option {
+	return func(v *url.Values) {
+		v.Set("state", state)
+	}
+}
+
 // New creates a Jira client from configuration.
 // If httpClient is nil, a default client with a 30s timeout is used.
 func New(cfg config.Config, httpClient *http.Client) *Client {
@@ -262,4 +269,76 @@ func (c *Client) AddWorklog(ctx context.Context, key string, req *AddWorklogRequ
 		return nil, err
 	}
 	return &worklog, nil
+}
+
+// listSprintsQuery builds query values from options for sprint endpoints.
+func listSprintsQuery(opts []Option) url.Values {
+	query := url.Values{}
+	for _, opt := range opts {
+		opt(&query)
+	}
+	return query
+}
+
+// ListSprints returns the sprints of a Jira Agile board.
+func (c *Client) ListSprints(ctx context.Context, boardID string, opts ...Option) (SprintList, error) {
+	path := fmt.Sprintf("/rest/agile/1.0/board/%s/sprint", url.PathEscape(boardID))
+	resp, err := c.doWithRetry(ctx, http.MethodGet, path, listSprintsQuery(opts), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result SprintListResponse
+	if err := handleResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return result.Values, nil
+}
+
+// GetSprint fetches a single sprint by its Agile sprint ID.
+func (c *Client) GetSprint(ctx context.Context, sprintID string) (*Sprint, error) {
+	if sprintID == "" {
+		return nil, fmt.Errorf("missing required parameter: sprint_id")
+	}
+	path := fmt.Sprintf("/rest/agile/1.0/sprint/%s", url.PathEscape(sprintID))
+	resp, err := c.doWithRetry(ctx, http.MethodGet, path, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var sprint Sprint
+	if err := handleResponse(resp, &sprint); err != nil {
+		return nil, err
+	}
+	return &sprint, nil
+}
+
+// GetActiveSprint returns the first active sprint for a board, if any.
+func (c *Client) GetActiveSprint(ctx context.Context, boardID string, opts ...Option) (*Sprint, error) {
+	opts = append([]Option{WithState("active")}, opts...)
+	sprints, err := c.ListSprints(ctx, boardID, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if len(sprints) == 0 {
+		return nil, nil
+	}
+	return &sprints[0], nil
+}
+
+// SearchSprintByName lists a board's sprints and returns those whose names contain the query case-insensitively.
+func (c *Client) SearchSprintByName(ctx context.Context, boardID string, name string, opts ...Option) (SprintList, error) {
+	if name == "" {
+		return nil, fmt.Errorf("missing required parameter: name")
+	}
+	sprints, err := c.ListSprints(ctx, boardID, opts...)
+	if err != nil {
+		return nil, err
+	}
+	query := strings.ToLower(name)
+	var matches SprintList
+	for _, sp := range sprints {
+		if strings.Contains(strings.ToLower(sp.Name), query) {
+			matches = append(matches, sp)
+		}
+	}
+	return matches, nil
 }

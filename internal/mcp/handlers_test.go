@@ -12,17 +12,21 @@ import (
 )
 
 type fakeJiraClient struct {
-	searchFn          func(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
-	getIssueFn        func(ctx context.Context, key string) (*jira.Issue, error)
-	createIssueFn     func(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error)
-	updateIssueFn     func(ctx context.Context, key string, req *jira.UpdateIssueRequest) error
-	transitionIssueFn func(ctx context.Context, key string, req *jira.TransitionIssueRequest) error
-	assignIssueFn     func(ctx context.Context, key string, req *jira.AssignIssueRequest) error
-	deleteIssueFn     func(ctx context.Context, key string) error
-	listProjectsFn    func(ctx context.Context) ([]jira.Project, error)
-	getTransitionsFn  func(ctx context.Context, key string) ([]jira.Transition, error)
-	addCommentFn      func(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error)
-	addWorklogFn      func(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error)
+	searchFn           func(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
+	getIssueFn         func(ctx context.Context, key string) (*jira.Issue, error)
+	createIssueFn      func(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error)
+	updateIssueFn      func(ctx context.Context, key string, req *jira.UpdateIssueRequest) error
+	transitionIssueFn  func(ctx context.Context, key string, req *jira.TransitionIssueRequest) error
+	assignIssueFn      func(ctx context.Context, key string, req *jira.AssignIssueRequest) error
+	deleteIssueFn      func(ctx context.Context, key string) error
+	listProjectsFn     func(ctx context.Context) ([]jira.Project, error)
+	getTransitionsFn   func(ctx context.Context, key string) ([]jira.Transition, error)
+	addCommentFn       func(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error)
+	addWorklogFn       func(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error)
+	listSprintsFn      func(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error)
+	getSprintFn        func(ctx context.Context, sprintID string) (*jira.Sprint, error)
+	getActiveSprintFn  func(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error)
+	searchSprintByName func(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error)
 }
 
 func (f *fakeJiraClient) Search(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error) {
@@ -58,6 +62,18 @@ func (f *fakeJiraClient) AddComment(ctx context.Context, key string, req *jira.A
 func (f *fakeJiraClient) AddWorklog(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error) {
 	return f.addWorklogFn(ctx, key, req)
 }
+func (f *fakeJiraClient) ListSprints(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error) {
+	return f.listSprintsFn(ctx, boardID, opts...)
+}
+func (f *fakeJiraClient) GetSprint(ctx context.Context, sprintID string) (*jira.Sprint, error) {
+	return f.getSprintFn(ctx, sprintID)
+}
+func (f *fakeJiraClient) GetActiveSprint(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error) {
+	return f.getActiveSprintFn(ctx, boardID, opts...)
+}
+func (f *fakeJiraClient) SearchSprintByName(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error) {
+	return f.searchSprintByName(ctx, boardID, name, opts...)
+}
 
 func newRequest(name string, args map[string]any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
@@ -84,6 +100,10 @@ func TestServer_ToolList(t *testing.T) {
 		"jira_get_transitions",
 		"jira_add_comment",
 		"jira_add_worklog",
+		"jira_list_sprints",
+		"jira_get_sprint",
+		"jira_get_active_sprint",
+		"jira_search_sprint_by_name",
 	}
 
 	if len(tools) != len(expected) {
@@ -382,6 +402,161 @@ func TestHandleJiraError_DoesNotLeakToken(t *testing.T) {
 	text := result.Content[0].(mcp.TextContent).Text
 	if contains(text, "secret-token") {
 		t.Errorf("error leaks token: %s", text)
+	}
+}
+
+func TestHandleListSprints(t *testing.T) {
+	client := &fakeJiraClient{
+		listSprintsFn: func(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error) {
+			if boardID != "42" {
+				t.Errorf("unexpected board id %s", boardID)
+			}
+			return jira.SprintList{{ID: 1, Name: "Sprint 1", State: "active"}}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleListSprints(context.Background(), newRequest("jira_list_sprints", map[string]any{"board_id": "42"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "Sprint 1") {
+		t.Errorf("expected result to contain Sprint 1, got %s", text)
+	}
+}
+
+func TestHandleListSprints_MissingBoardID(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client)
+
+	_, err := srv.handleListSprints(context.Background(), newRequest("jira_list_sprints", map[string]any{}))
+	if err == nil {
+		t.Fatal("expected error for missing board_id")
+	}
+}
+
+func TestHandleGetSprint(t *testing.T) {
+	client := &fakeJiraClient{
+		getSprintFn: func(ctx context.Context, sprintID string) (*jira.Sprint, error) {
+			if sprintID != "123" {
+				t.Errorf("unexpected sprint id %s", sprintID)
+			}
+			return &jira.Sprint{ID: 123, Name: "Sprint 1", State: "active"}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleGetSprint(context.Background(), newRequest("jira_get_sprint", map[string]any{"sprint_id": "123"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "Sprint 1") {
+		t.Errorf("expected result to contain Sprint 1, got %s", text)
+	}
+}
+
+func TestHandleGetSprint_MissingSprintID(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client)
+
+	_, err := srv.handleGetSprint(context.Background(), newRequest("jira_get_sprint", map[string]any{}))
+	if err == nil {
+		t.Fatal("expected error for missing sprint_id")
+	}
+}
+
+func TestHandleGetActiveSprint(t *testing.T) {
+	client := &fakeJiraClient{
+		getActiveSprintFn: func(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error) {
+			if boardID != "42" {
+				t.Errorf("unexpected board id %s", boardID)
+			}
+			return &jira.Sprint{ID: 1, Name: "Active Sprint", State: "active"}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{"board_id": "42"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "Active Sprint") {
+		t.Errorf("expected result to contain Active Sprint, got %s", text)
+	}
+}
+
+func TestHandleGetActiveSprint_NoActiveSprint(t *testing.T) {
+	client := &fakeJiraClient{
+		getActiveSprintFn: func(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error) {
+			return nil, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{"board_id": "42"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "No active sprint") {
+		t.Errorf("expected result to indicate no active sprint, got %s", text)
+	}
+}
+
+func TestHandleGetActiveSprint_MissingBoardID(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client)
+
+	_, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{}))
+	if err == nil {
+		t.Fatal("expected error for missing board_id")
+	}
+}
+
+func TestHandleSearchSprintByName(t *testing.T) {
+	client := &fakeJiraClient{
+		searchSprintByName: func(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error) {
+			if boardID != "42" || name != "sprint" {
+				t.Errorf("unexpected request: board_id=%s name=%s", boardID, name)
+			}
+			return jira.SprintList{
+				{ID: 1, Name: "Sprint 1", State: "active"},
+				{ID: 2, Name: "sprint 2", State: "future"},
+			}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"board_id": "42", "name": "sprint"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "Sprint 1") || !contains(text, "sprint 2") {
+		t.Errorf("expected result to contain both sprints, got %s", text)
+	}
+}
+
+func TestHandleSearchSprintByName_MissingName(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client)
+
+	_, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"board_id": "42"}))
+	if err == nil {
+		t.Fatal("expected error for missing name")
+	}
+}
+
+func TestHandleSearchSprintByName_MissingBoardID(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client)
+
+	_, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"name": "sprint"}))
+	if err == nil {
+		t.Fatal("expected error for missing board_id")
 	}
 }
 

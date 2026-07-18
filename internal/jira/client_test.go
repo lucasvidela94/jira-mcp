@@ -446,8 +446,8 @@ func TestClient_doesNotRetryWrites(t *testing.T) {
 
 	_, err := client.CreateIssue(context.Background(), &CreateIssueRequest{
 		ProjectKey: "PROJ",
-		IssueType: "Task",
-		Summary:   "New issue",
+		IssueType:  "Task",
+		Summary:    "New issue",
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -621,5 +621,186 @@ func TestClient_CreateIssue_MissingRequired(t *testing.T) {
 	}
 	if err.Error() != "jira error 400: validation failed: Specify an issue type" {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_ListSprints(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board/42/sprint" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("maxResults") != "10" {
+			t.Errorf("unexpected maxResults %s", r.URL.Query().Get("maxResults"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{{ID: 1, Name: "Sprint 1", State: "active"}}})
+	})
+	defer server.Close()
+
+	sprints, err := client.ListSprints(context.Background(), "42", WithMaxResults(10))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sprints) != 1 || sprints[0].Name != "Sprint 1" {
+		t.Errorf("unexpected sprints: %+v", sprints)
+	}
+}
+
+func TestClient_ListSprints_DefaultPagination(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board/42/sprint" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{{ID: 1, Name: "Sprint 1"}}})
+	})
+	defer server.Close()
+
+	sprints, err := client.ListSprints(context.Background(), "42")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sprints) != 1 {
+		t.Errorf("unexpected sprints: %+v", sprints)
+	}
+}
+
+func TestClient_ListSprints_BoardNotFound(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{"errorMessages": []string{"Board does not exist"}})
+	})
+	defer server.Close()
+
+	_, err := client.ListSprints(context.Background(), "999")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "jira error 404: issue not found" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_GetSprint(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/sprint/123" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Sprint{ID: 123, Name: "Sprint 1", State: "active"})
+	})
+	defer server.Close()
+
+	sprint, err := client.GetSprint(context.Background(), "123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sprint.ID != 123 {
+		t.Errorf("unexpected sprint id %d", sprint.ID)
+	}
+}
+
+func TestClient_GetSprint_MissingID(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("should not be called")
+	})
+	defer server.Close()
+
+	_, err := client.GetSprint(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestClient_GetActiveSprint(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board/42/sprint" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("state") != "active" {
+			t.Errorf("expected state=active, got %s", r.URL.Query().Get("state"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{{ID: 1, Name: "Active Sprint", State: "active"}}})
+	})
+	defer server.Close()
+
+	sprint, err := client.GetActiveSprint(context.Background(), "42", WithMaxResults(10))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sprint.Name != "Active Sprint" {
+		t.Errorf("unexpected sprint: %+v", sprint)
+	}
+}
+
+func TestClient_GetActiveSprint_Empty(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{}})
+	})
+	defer server.Close()
+
+	sprint, err := client.GetActiveSprint(context.Background(), "42")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sprint != nil {
+		t.Errorf("expected nil sprint, got %+v", sprint)
+	}
+}
+
+func TestClient_SearchSprintByName(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board/42/sprint" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{
+			{ID: 1, Name: "Sprint 1", State: "active"},
+			{ID: 2, Name: "sprint 2", State: "future"},
+			{ID: 3, Name: "Backlog", State: "future"},
+		}})
+	})
+	defer server.Close()
+
+	sprints, err := client.SearchSprintByName(context.Background(), "42", "sprint", WithMaxResults(10))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sprints) != 2 {
+		t.Errorf("expected 2 matches, got %d: %+v", len(sprints), sprints)
+	}
+}
+
+func TestClient_SearchSprintByName_NoMatches(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SprintListResponse{Values: SprintList{
+			{ID: 1, Name: "Sprint 1"},
+			{ID: 2, Name: "Sprint 2"},
+		}})
+	})
+	defer server.Close()
+
+	sprints, err := client.SearchSprintByName(context.Background(), "42", "march", WithMaxResults(10))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sprints) != 0 {
+		t.Errorf("expected 0 matches, got %d", len(sprints))
+	}
+}
+
+func TestClient_SearchSprintByName_MissingName(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("should not be called")
+	})
+	defer server.Close()
+
+	_, err := client.SearchSprintByName(context.Background(), "42", "")
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
