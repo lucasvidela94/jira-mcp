@@ -14,12 +14,15 @@ import (
 
 // Server wraps the mcp-go server and Jira client.
 type Server struct {
-	client JiraClient
-	mcp    *mcpserver.MCPServer
+	client       JiraClient
+	mcp          *mcpserver.MCPServer
+	enabledTools []string
 }
 
 // NewServer builds an MCP server with all Jira tools registered.
-func NewServer(client JiraClient) *Server {
+// If enabledTools is non-empty, only tools whose names appear in the list
+// are exposed. Unset or empty enables all tools.
+func NewServer(client JiraClient, enabledTools []string) *Server {
 	s := &Server{
 		client: client,
 		mcp: mcpserver.NewMCPServer(
@@ -27,6 +30,7 @@ func NewServer(client JiraClient) *Server {
 			"0.1.0",
 			mcpserver.WithLogging(),
 		),
+		enabledTools: enabledTools,
 	}
 	s.registerTools()
 	return s
@@ -70,8 +74,9 @@ func (s *Server) registerTools() {
 }
 
 // toolDefinitions returns the tool definitions paired with their handlers.
+// If enabledTools is set, only tools whose names appear in the list are returned.
 func (s *Server) toolDefinitions() []serverTool {
-	return []serverTool{
+	all := []serverTool{
 		{tool: searchTool(), handler: s.handleSearch},
 		{tool: getIssueTool(), handler: s.handleGetIssue},
 		{tool: createIssueTool(), handler: s.handleCreateIssue},
@@ -97,6 +102,23 @@ func (s *Server) toolDefinitions() []serverTool {
 		{tool: getRelatedIssuesTool(), handler: s.handleGetRelatedIssues},
 		{tool: createChildIssueTool(), handler: s.handleCreateChildIssue},
 	}
+
+	if len(s.enabledTools) == 0 {
+		return all
+	}
+
+	allowed := make(map[string]bool, len(s.enabledTools))
+	for _, name := range s.enabledTools {
+		allowed[name] = true
+	}
+
+	var filtered []serverTool
+	for _, st := range all {
+		if allowed[st.tool.Name] {
+			filtered = append(filtered, st)
+		}
+	}
+	return filtered
 }
 
 type serverTool struct {

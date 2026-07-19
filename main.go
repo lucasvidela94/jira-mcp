@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
+	"strings"
 
+	"github.com/lucasvidela94/jira-mcp/internal/cli"
 	"github.com/lucasvidela94/jira-mcp/internal/config"
 	"github.com/lucasvidela94/jira-mcp/internal/jira"
 	"github.com/lucasvidela94/jira-mcp/internal/mcp"
@@ -43,6 +45,21 @@ func main() {
 		return
 	}
 
+	climode, args := detectCLI(os.Args[1:])
+	if climode {
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config error: %s\n", err)
+			os.Exit(1)
+		}
+		client := jira.New(cfg, nil)
+		if err := cli.Run(args, client); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n\nAvailable commands:\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	transport := flag.String("transport", "stdio", "transport type: stdio or http")
 	port := flag.String("port", "8080", "HTTP listen port (used with --transport http)")
 	versionFlag := flag.Bool("version", false, "print version and exit")
@@ -60,7 +77,7 @@ func main() {
 	}
 
 	client := jira.New(cfg, nil)
-	server := mcp.NewServer(client)
+	server := mcp.NewServer(client, cfg.EnabledTools)
 
 	if err := dispatchTransport(server, *transport, *port); err != nil {
 		log.Fatalf("server error: %s", err)
@@ -78,6 +95,25 @@ func runUpdate() error {
 		fmt.Println("Restart your MCP client to use the new version.")
 	}
 	return nil
+}
+
+// detectCLI checks whether the invocation looks like a CLI subcommand.
+// A bare positional argument (not starting with "-") activates CLI mode.
+// The --cli flag also forces CLI mode and is stripped from the arg slice.
+func detectCLI(rawArgs []string) (bool, []string) {
+	var filtered []string
+	cliMode := false
+	for _, a := range rawArgs {
+		if a == "--cli" {
+			cliMode = true
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	if !cliMode && len(filtered) > 0 && !strings.HasPrefix(filtered[0], "-") {
+		cliMode = true
+	}
+	return cliMode, filtered
 }
 
 func dispatchTransport(server runner, transport, port string) error {

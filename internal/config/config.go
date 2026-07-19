@@ -3,13 +3,15 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Config holds Jira Cloud credentials sourced from environment variables.
 type Config struct {
-	URL      string // JIRA_URL
-	Username string // JIRA_USERNAME
-	APIToken string // JIRA_API_TOKEN
+	URL          string   // JIRA_URL
+	Username     string   // JIRA_USERNAME
+	APIToken     string   // JIRA_API_TOKEN
+	EnabledTools []string // ENABLED_TOOLS (comma-separated allowlist)
 }
 
 // Load reads Jira configuration from environment variables.
@@ -34,5 +36,21 @@ func Load() (Config, error) {
 		}
 	}
 
+	if raw := os.Getenv("ENABLED_TOOLS"); raw != "" {
+		cfg.EnabledTools = splitAndTrim(raw, ",")
+	}
+
 	return cfg, nil
+}
+
+func splitAndTrim(s, sep string) []string {
+	parts := strings.Split(s, sep)
+	var out []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

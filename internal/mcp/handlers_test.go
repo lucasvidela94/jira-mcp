@@ -129,7 +129,7 @@ func newRequest(name string, args map[string]any) mcp.CallToolRequest {
 }
 
 func TestServer_ToolList(t *testing.T) {
-	srv := NewServer(&fakeJiraClient{})
+	srv := NewServer(&fakeJiraClient{}, nil)
 	tools := srv.mcp.ListTools()
 
 	expected := []string{
@@ -178,7 +178,7 @@ func TestHandleSearch(t *testing.T) {
 			return &jira.SearchResult{Total: 1, Issues: []jira.Issue{{Key: "PROJ-1"}}}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleSearch(context.Background(), newRequest("jira_search", map[string]any{"jql": "project = PROJ"}))
 	if err != nil {
@@ -196,7 +196,7 @@ func TestHandleSearch(t *testing.T) {
 
 func TestHandleSearch_MissingRequiredParam(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleSearch(context.Background(), newRequest("jira_search", map[string]any{}))
 	if err == nil {
@@ -210,7 +210,7 @@ func TestHandleGetIssue(t *testing.T) {
 			return &jira.Issue{Key: key, ID: "10001", Fields: json.RawMessage(`{"summary":"Test"}`)}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetIssue(context.Background(), newRequest("jira_get_issue", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
@@ -231,7 +231,7 @@ func TestHandleCreateIssue(t *testing.T) {
 			return &jira.Issue{Key: "PROJ-2", ID: "10002"}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleCreateIssue(context.Background(), newRequest("jira_create_issue", map[string]any{
 		"project_key": "PROJ",
@@ -249,7 +249,7 @@ func TestHandleCreateIssue(t *testing.T) {
 
 func TestHandleCreateIssue_MissingRequiredParam(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleCreateIssue(context.Background(), newRequest("jira_create_issue", map[string]any{"summary": "New issue"}))
 	if err == nil {
@@ -266,7 +266,7 @@ func TestHandleUpdateIssue(t *testing.T) {
 			return nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleUpdateIssue(context.Background(), newRequest("jira_update_issue", map[string]any{"issue_key": "PROJ-1", "summary": "Updated"}))
 	if err != nil {
@@ -283,7 +283,7 @@ func TestHandleTransitionIssue(t *testing.T) {
 			return nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleTransitionIssue(context.Background(), newRequest("jira_transition_issue", map[string]any{"issue_key": "PROJ-1", "transition_id": "21"}))
 	if err != nil {
@@ -300,7 +300,7 @@ func TestHandleAssignIssue(t *testing.T) {
 			return nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleAssignIssue(context.Background(), newRequest("jira_assign_issue", map[string]any{"issue_key": "PROJ-1", "account_id": "abc123"}))
 	if err != nil {
@@ -317,7 +317,7 @@ func TestHandleDeleteIssue(t *testing.T) {
 			return nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleDeleteIssue(context.Background(), newRequest("jira_delete_issue", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
@@ -331,7 +331,7 @@ func TestHandleListProjects(t *testing.T) {
 			return []jira.Project{{Key: "PROJ", Name: "Project"}}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleListProjects(context.Background(), mcp.CallToolRequest{})
 	if err != nil {
@@ -352,7 +352,7 @@ func TestHandleGetTransitions(t *testing.T) {
 			return []jira.Transition{{ID: "21", Name: "In Progress"}}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetTransitions(context.Background(), newRequest("jira_get_transitions", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
@@ -376,7 +376,7 @@ func TestHandleAddComment(t *testing.T) {
 			return &jira.CommentResponse{ID: "10010", Self: "https://jira/comment/10010"}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleAddComment(context.Background(), newRequest("jira_add_comment", map[string]any{"issue_key": "PROJ-1", "body": "A comment"}))
 	if err != nil {
@@ -390,7 +390,7 @@ func TestHandleAddComment(t *testing.T) {
 
 func TestHandleAddComment_EmptyBody(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleAddComment(context.Background(), newRequest("jira_add_comment", map[string]any{"issue_key": "PROJ-1", "body": ""}))
 	if err != nil {
@@ -410,7 +410,7 @@ func TestHandleAddWorklog(t *testing.T) {
 			return &jira.WorklogResponse{ID: "10020", Self: "https://jira/worklog/10020"}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleAddWorklog(context.Background(), newRequest("jira_add_worklog", map[string]any{"issue_key": "PROJ-1", "time_spent": "1h"}))
 	if err != nil {
@@ -428,7 +428,7 @@ func TestHandleJiraError_MapsToToolError(t *testing.T) {
 			return nil, &jira.JiraError{StatusCode: 404, Message: "resource not found"}
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetIssue(context.Background(), newRequest("jira_get_issue", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
@@ -449,7 +449,7 @@ func TestHandleJiraError_DoesNotLeakToken(t *testing.T) {
 			return nil, errors.New("request failed: JIRA_API_TOKEN=secret-token")
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetIssue(context.Background(), newRequest("jira_get_issue", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
@@ -472,7 +472,7 @@ func TestHandleListBoards(t *testing.T) {
 			}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleListBoards(context.Background(), newRequest("jira_list_boards", map[string]any{"project_key": "MC"}))
 	if err != nil {
@@ -495,7 +495,7 @@ func TestHandleListBoards_NoFilter(t *testing.T) {
 			}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleListBoards(context.Background(), mcp.CallToolRequest{})
 	if err != nil {
@@ -516,7 +516,7 @@ func TestHandleListSprints(t *testing.T) {
 			return jira.SprintList{{ID: 1, Name: "Sprint 1", State: "active"}}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleListSprints(context.Background(), newRequest("jira_list_sprints", map[string]any{"board_id": "42"}))
 	if err != nil {
@@ -533,7 +533,7 @@ func TestHandleListSprints(t *testing.T) {
 
 func TestHandleListSprints_MissingBoardID(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleListSprints(context.Background(), newRequest("jira_list_sprints", map[string]any{}))
 	if err == nil {
@@ -550,7 +550,7 @@ func TestHandleGetSprint(t *testing.T) {
 			return &jira.Sprint{ID: 123, Name: "Sprint 1", State: "active"}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetSprint(context.Background(), newRequest("jira_get_sprint", map[string]any{"sprint_id": "123"}))
 	if err != nil {
@@ -564,7 +564,7 @@ func TestHandleGetSprint(t *testing.T) {
 
 func TestHandleGetSprint_MissingSprintID(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleGetSprint(context.Background(), newRequest("jira_get_sprint", map[string]any{}))
 	if err == nil {
@@ -581,7 +581,7 @@ func TestHandleGetActiveSprint(t *testing.T) {
 			return &jira.Sprint{ID: 1, Name: "Active Sprint", State: "active"}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{"board_id": "42"}))
 	if err != nil {
@@ -599,7 +599,7 @@ func TestHandleGetActiveSprint_NoActiveSprint(t *testing.T) {
 			return nil, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{"board_id": "42"}))
 	if err != nil {
@@ -613,7 +613,7 @@ func TestHandleGetActiveSprint_NoActiveSprint(t *testing.T) {
 
 func TestHandleGetActiveSprint_MissingBoardID(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleGetActiveSprint(context.Background(), newRequest("jira_get_active_sprint", map[string]any{}))
 	if err == nil {
@@ -633,7 +633,7 @@ func TestHandleSearchSprintByName(t *testing.T) {
 			}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	result, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"board_id": "42", "name": "sprint"}))
 	if err != nil {
@@ -650,7 +650,7 @@ func TestHandleSearchSprintByName(t *testing.T) {
 
 func TestHandleSearchSprintByName_MissingName(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"board_id": "42"}))
 	if err == nil {
@@ -660,7 +660,7 @@ func TestHandleSearchSprintByName_MissingName(t *testing.T) {
 
 func TestHandleSearchSprintByName_MissingBoardID(t *testing.T) {
 	client := &fakeJiraClient{}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 
 	_, err := srv.handleSearchSprintByName(context.Background(), newRequest("jira_search_sprint_by_name", map[string]any{"name": "sprint"}))
 	if err == nil {
@@ -679,7 +679,7 @@ func TestHandleGetIssueHistory(t *testing.T) {
 			}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 	result, err := srv.handleGetIssueHistory(context.Background(), newRequest("jira_get_issue_history", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -691,7 +691,7 @@ func TestHandleGetIssueHistory(t *testing.T) {
 }
 
 func TestHandleGetIssueHistory_MissingKey(t *testing.T) {
-	srv := NewServer(&fakeJiraClient{})
+	srv := NewServer(&fakeJiraClient{}, nil)
 	_, err := srv.handleGetIssueHistory(context.Background(), newRequest("jira_get_issue_history", map[string]any{}))
 	if err == nil {
 		t.Fatal("expected error for missing issue_key")
@@ -704,7 +704,7 @@ func TestHandleListProjectVersions(t *testing.T) {
 			return []jira.Version{{ID: "1", Name: "v1.0"}}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 	result, err := srv.handleListProjectVersions(context.Background(), newRequest("jira_list_project_versions", map[string]any{"project_key": "PROJ"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -721,7 +721,7 @@ func TestHandleGetVersion(t *testing.T) {
 			return &jira.Version{ID: "1", Name: "v1.0", Released: true}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 	result, err := srv.handleGetVersion(context.Background(), newRequest("jira_get_version", map[string]any{"version_id": "1"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -733,7 +733,7 @@ func TestHandleGetVersion(t *testing.T) {
 }
 
 func TestHandleGetVersion_MissingID(t *testing.T) {
-	srv := NewServer(&fakeJiraClient{})
+	srv := NewServer(&fakeJiraClient{}, nil)
 	_, err := srv.handleGetVersion(context.Background(), newRequest("jira_get_version", map[string]any{}))
 	if err == nil {
 		t.Fatal("expected error for missing version_id")
@@ -746,7 +746,7 @@ func TestHandleGetDevelopmentInfo(t *testing.T) {
 			return &jira.DevelopmentInformation{}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 	result, err := srv.handleGetDevelopmentInfo(context.Background(), newRequest("jira_get_development_info", map[string]any{"issue_key": "PROJ-1"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -766,7 +766,7 @@ func TestHandleListStatuses(t *testing.T) {
 			}, nil
 		},
 	}
-	srv := NewServer(client)
+	srv := NewServer(client, nil)
 	result, err := srv.handleListStatuses(context.Background(), newRequest("jira_list_statuses", map[string]any{"project_key": "PROJ"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

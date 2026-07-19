@@ -167,10 +167,11 @@ curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scrip
 Set these environment variables:
 
 | Variable | Description | Example |
-|---|---|---|
+|---|---|---|---|
 | `JIRA_URL` | Your Jira Cloud base URL | `https://yourcompany.atlassian.net` |
 | `JIRA_USERNAME` | Email of the Jira user | `you@example.com` |
 | `JIRA_API_TOKEN` | Jira API token | Create one [here](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| `ENABLED_TOOLS` | Optional comma-separated tool allowlist | `jira_search,jira_get_issue,jira_list_projects` |
 
 ## Client Setup
 
@@ -271,6 +272,14 @@ Set these environment variables:
 | `jira_get_sprint` | Get a sprint by its Agile ID |
 | `jira_get_active_sprint` | Get the active sprint for a board |
 | `jira_search_sprint_by_name` | Search sprints by name on a board |
+| `jira_get_issue_history` | Get the change history of an issue |
+| `jira_list_project_versions` | List versions in a project |
+| `jira_get_version` | Get a version by its ID |
+| `jira_get_development_info` | Get linked PRs, branches, and commits |
+| `jira_list_statuses` | List statuses for a project |
+| `jira_create_issue_link` | Link two issues |
+| `jira_get_related_issues` | Get issues linked to an issue |
+| `jira_create_child_issue` | Create a sub-task or child issue |
 
 ## HTTP/SSE Transport
 

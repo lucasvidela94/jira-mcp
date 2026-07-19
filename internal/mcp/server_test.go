@@ -14,7 +14,7 @@ func TestServer_ServeSSE_Exists(t *testing.T) {
 }
 
 func TestSSEServer_Routes(t *testing.T) {
-	srv := NewServer(&fakeJiraClient{})
+	srv := NewServer(&fakeJiraClient{}, nil)
 	ts := mcpserver.NewTestServer(srv.mcp)
 	defer ts.Close()
 
@@ -30,7 +30,7 @@ func TestSSEServer_Routes(t *testing.T) {
 }
 
 func TestSSEServer_HealthReturns404(t *testing.T) {
-	srv := NewServer(&fakeJiraClient{})
+	srv := NewServer(&fakeJiraClient{}, nil)
 	ts := mcpserver.NewTestServer(srv.mcp)
 	defer ts.Close()
 
