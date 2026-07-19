@@ -366,3 +366,105 @@ func (c *Client) SearchSprintByName(ctx context.Context, boardID string, name st
 	}
 	return matches, nil
 }
+
+// GetIssueHistory returns the changelog of an issue.
+func (c *Client) GetIssueHistory(ctx context.Context, key string) (*Changelog, error) {
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/issue/%s/changelog", url.PathEscape(key)), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var changelog Changelog
+	if err := handleResponse(resp, &changelog); err != nil {
+		return nil, err
+	}
+	return &changelog, nil
+}
+
+// ListProjectVersions returns versions for a project.
+func (c *Client) ListProjectVersions(ctx context.Context, projectKey string) ([]Version, error) {
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/project/%s/versions", url.PathEscape(projectKey)), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var versions []Version
+	if err := handleResponse(resp, &versions); err != nil {
+		return nil, err
+	}
+	return versions, nil
+}
+
+// GetVersion returns a single version by ID.
+func (c *Client) GetVersion(ctx context.Context, id string) (*Version, error) {
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/version/%s", url.PathEscape(id)), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var version Version
+	if err := handleResponse(resp, &version); err != nil {
+		return nil, err
+	}
+	return &version, nil
+}
+
+// GetDevelopmentInfo returns linked development data for an issue.
+func (c *Client) GetDevelopmentInfo(ctx context.Context, key string) (*DevelopmentInformation, error) {
+	query := url.Values{"fields": []string{"development"}}
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key)), query, nil)
+	if err != nil {
+		return nil, err
+	}
+	var issue Issue
+	if err := handleResponse(resp, &issue); err != nil {
+		return nil, err
+	}
+	return parseDevelopmentInfo(issue.Fields)
+}
+
+// ListStatuses returns the statuses available for a project.
+func (c *Client) ListStatuses(ctx context.Context, projectKey string) ([]ProjectStatus, error) {
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/project/%s/statuses", url.PathEscape(projectKey)), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var statuses []ProjectStatus
+	if err := handleResponse(resp, &statuses); err != nil {
+		return nil, err
+	}
+	return statuses, nil
+}
+
+// CreateIssueLink creates a link between two Jira issues.
+func (c *Client) CreateIssueLink(ctx context.Context, req *IssueLinkRequest) error {
+	resp, err := c.do(ctx, http.MethodPost, "/rest/api/3/issueLink", nil, req)
+	if err != nil {
+		return err
+	}
+	return handleResponse(resp, nil)
+}
+
+// GetRelatedIssues returns issues linked to the given issue.
+func (c *Client) GetRelatedIssues(ctx context.Context, key string) ([]LinkedIssue, error) {
+	query := url.Values{"fields": []string{"issuelinks"}}
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key)), query, nil)
+	if err != nil {
+		return nil, err
+	}
+	var issue Issue
+	if err := handleResponse(resp, &issue); err != nil {
+		return nil, err
+	}
+	return parseIssueLinks(issue.Fields)
+}
+
+// CreateChildIssue creates a sub-task or child issue under a parent.
+func (c *Client) CreateChildIssue(ctx context.Context, parentKey string, req *CreateChildIssueRequest) (*Issue, error) {
+	resp, err := c.do(ctx, http.MethodPost, "/rest/api/3/issue", nil, req)
+	if err != nil {
+		return nil, err
+	}
+	var issue Issue
+	if err := handleResponse(resp, &issue); err != nil {
+		return nil, err
+	}
+	return &issue, nil
+}

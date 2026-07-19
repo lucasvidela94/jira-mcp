@@ -7,7 +7,6 @@ import (
 )
 
 // JiraClient is the contract the MCP server needs from a Jira client.
-// The real *jira.Client satisfies this interface.
 type JiraClient interface {
 	Search(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
 	GetIssue(ctx context.Context, key string) (*jira.Issue, error)
@@ -25,7 +24,14 @@ type JiraClient interface {
 	GetSprint(ctx context.Context, sprintID string) (*jira.Sprint, error)
 	GetActiveSprint(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error)
 	SearchSprintByName(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error)
+	GetIssueHistory(ctx context.Context, key string) (*jira.Changelog, error)
+	ListProjectVersions(ctx context.Context, projectKey string) ([]jira.Version, error)
+	GetVersion(ctx context.Context, id string) (*jira.Version, error)
+	GetDevelopmentInfo(ctx context.Context, key string) (*jira.DevelopmentInformation, error)
+	ListStatuses(ctx context.Context, projectKey string) ([]jira.ProjectStatus, error)
+	CreateIssueLink(ctx context.Context, req *jira.IssueLinkRequest) error
+	GetRelatedIssues(ctx context.Context, key string) ([]jira.LinkedIssue, error)
+	CreateChildIssue(ctx context.Context, parentKey string, req *jira.CreateChildIssueRequest) (*jira.Issue, error)
 }
 
-// Ensure the concrete client satisfies the interface.
 var _ JiraClient = (*jira.Client)(nil)

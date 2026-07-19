@@ -122,6 +122,69 @@ func getActiveSprintTool() mcp.Tool {
 	)
 }
 
+func getIssueHistoryTool() mcp.Tool {
+	return mcp.NewTool("jira_get_issue_history",
+		mcp.WithDescription("Get the change history (changelog) of a Jira issue."),
+		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+	)
+}
+
+func listProjectVersionsTool() mcp.Tool {
+	return mcp.NewTool("jira_list_project_versions",
+		mcp.WithDescription("List versions in a Jira project."),
+		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
+	)
+}
+
+func getVersionTool() mcp.Tool {
+	return mcp.NewTool("jira_get_version",
+		mcp.WithDescription("Get a Jira version by its ID."),
+		mcp.WithString("version_id", mcp.Description("Version identifier"), mcp.Required()),
+	)
+}
+
+func getDevelopmentInfoTool() mcp.Tool {
+	return mcp.NewTool("jira_get_development_info",
+		mcp.WithDescription("Get linked pull requests, branches, and commits for a Jira issue."),
+		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+	)
+}
+
+func listStatusesTool() mcp.Tool {
+	return mcp.NewTool("jira_list_statuses",
+		mcp.WithDescription("List statuses available for a Jira project."),
+		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
+	)
+}
+
+func createIssueLinkTool() mcp.Tool {
+	return mcp.NewTool("jira_create_issue_link",
+		mcp.WithDescription("Create a link between two Jira issues."),
+		mcp.WithString("link_type", mcp.Description("Link type name, e.g. Relates, Blocks, Cloners"), mcp.Required()),
+		mcp.WithString("inward_issue_key", mcp.Description("Key of the inward issue"), mcp.Required()),
+		mcp.WithString("outward_issue_key", mcp.Description("Key of the outward issue"), mcp.Required()),
+	)
+}
+
+func getRelatedIssuesTool() mcp.Tool {
+	return mcp.NewTool("jira_get_related_issues",
+		mcp.WithDescription("Get issues linked to a given Jira issue."),
+		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+	)
+}
+
+func createChildIssueTool() mcp.Tool {
+	return mcp.NewTool("jira_create_child_issue",
+		mcp.WithDescription("Create a sub-task or child issue under a parent issue."),
+		mcp.WithString("parent_key", mcp.Description("Parent issue key"), mcp.Required()),
+		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
+		mcp.WithString("issue_type", mcp.Description("Issue type name (usually Sub-task)"), mcp.Required()),
+		mcp.WithString("summary", mcp.Description("Issue summary"), mcp.Required()),
+		mcp.WithString("description", mcp.Description("Optional plain-text description")),
+		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
+	)
+}
+
 func searchSprintByNameTool() mcp.Tool {
 	return mcp.NewTool("jira_search_sprint_by_name",
 		mcp.WithDescription("Search sprints by name on a Jira Agile board (case-insensitive substring)."),
