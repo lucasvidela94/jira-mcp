@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"github.com/lucasvidela94/jira-mcp/internal/config"
 	"github.com/lucasvidela94/jira-mcp/internal/jira"
 	"github.com/lucasvidela94/jira-mcp/internal/mcp"
+	"github.com/lucasvidela94/jira-mcp/internal/update"
 )
 
 // version is set by goreleaser at build time.
@@ -34,6 +36,13 @@ type runner interface {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "update" {
+		if err := runUpdate(); err != nil {
+			log.Fatalf("update failed: %s", err)
+		}
+		return
+	}
+
 	transport := flag.String("transport", "stdio", "transport type: stdio or http")
 	port := flag.String("port", "8080", "HTTP listen port (used with --transport http)")
 	versionFlag := flag.Bool("version", false, "print version and exit")
@@ -56,6 +65,19 @@ func main() {
 	if err := dispatchTransport(server, *transport, *port); err != nil {
 		log.Fatalf("server error: %s", err)
 	}
+}
+
+func runUpdate() error {
+	u := update.NewSelfUpdater()
+	result, err := u.Run(context.Background(), resolveVersion())
+	if err != nil {
+		return err
+	}
+	fmt.Println(result.Message)
+	if result.PreviousVersion != result.NewVersion {
+		fmt.Println("Restart your MCP client to use the new version.")
+	}
+	return nil
 }
 
 func dispatchTransport(server runner, transport, port string) error {

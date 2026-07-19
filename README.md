@@ -138,6 +138,14 @@ After updating, **restart your MCP client** so it reloads the new binary. Verify
 jira-mcp --version
 ```
 
+You can also update the binary directly from the CLI:
+
+```bash
+jira-mcp update
+```
+
+This checks GitHub releases, downloads the latest asset for your platform, verifies the checksum, and replaces the running binary. After it finishes, restart your MCP client.
+
 ### Review the installer before running it
 
 If you prefer to inspect the script instead of piping it directly to your shell:
