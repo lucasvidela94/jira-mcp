@@ -97,6 +97,27 @@ func TestExtractTarGz_WithBinary(t *testing.T) {
 	}
 }
 
+func TestCompareSemver(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"v0.4.0", "v0.4.0", 0},
+		{"v0.4.0", "v0.4.1", -1},
+		{"v0.4.1", "v0.4.0", 1},
+		{"v0.4.1-0.20260719010122-45ccccdba902", "v0.4.0", 1},
+		{"v0.4.0+dirty", "v0.4.0", 0},
+		{"v0.5.0", "v0.4.0", 1},
+		{"0.4.0", "v0.4.0", 0},
+	}
+	for _, tc := range cases {
+		got := compareSemver(tc.a, tc.b)
+		if got != tc.want {
+			t.Errorf("compareSemver(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
 func TestSha256Sum(t *testing.T) {
 	got := sha256Sum([]byte("hello"))
 	h := sha256.New()

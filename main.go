@@ -74,7 +74,7 @@ func runUpdate() error {
 		return err
 	}
 	fmt.Println(result.Message)
-	if result.PreviousVersion != result.NewVersion {
+	if result.Updated {
 		fmt.Println("Restart your MCP client to use the new version.")
 	}
 	return nil

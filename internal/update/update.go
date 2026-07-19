@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -43,6 +44,7 @@ func NewSelfUpdater() *SelfUpdater {
 type Result struct {
 	PreviousVersion string
 	NewVersion      string
+	Updated         bool
 	Message         string
 }
 
@@ -62,12 +64,20 @@ func (u *SelfUpdater) Run(ctx context.Context, currentVersion string) (*Result, 
 		return nil, fmt.Errorf("cannot determine latest version: %w", err)
 	}
 
-	if strings.EqualFold(latest, currentVersion) {
+	currentSemver := normalizeVersion(currentVersion)
+	latestSemver := normalizeVersion(latest)
+
+	if currentSemver != "" && latestSemver != "" && compareSemver(currentSemver, latestSemver) >= 0 {
 		return &Result{
 			PreviousVersion: currentVersion,
 			NewVersion:      latest,
+			Updated:         false,
 			Message:         fmt.Sprintf("jira-mcp is already up to date (%s)", currentVersion),
 		}, nil
+	}
+
+	if currentVersion == "dev" {
+		fmt.Fprintf(os.Stderr, "warning: current version is 'dev'; updating to latest release %s\n", latest)
 	}
 
 	assetName := u.assetName(latest)
@@ -83,8 +93,68 @@ func (u *SelfUpdater) Run(ctx context.Context, currentVersion string) (*Result, 
 	return &Result{
 		PreviousVersion: currentVersion,
 		NewVersion:      latest,
+		Updated:         true,
 		Message:         fmt.Sprintf("updated jira-mcp from %s to %s", currentVersion, latest),
 	}, nil
+}
+
+// compareSemver returns -1 if a < b, 0 if equal, 1 if a > b.
+// It accepts "vX.Y.Z" or "vX.Y.Z-prerelease" shapes and ignores build metadata.
+func compareSemver(a, b string) int {
+	a = strings.TrimPrefix(strings.Split(a, "+")[0], "v")
+	b = strings.TrimPrefix(strings.Split(b, "+")[0], "v")
+
+	partsA := strings.SplitN(a, "-", 2)
+	partsB := strings.SplitN(b, "-", 2)
+
+	va := strings.Split(partsA[0], ".")
+	vb := strings.Split(partsB[0], ".")
+	for i := 0; i < 3; i++ {
+		na, _ := strconv.Atoi(va[i])
+		nb, _ := strconv.Atoi(vb[i])
+		if na < nb {
+			return -1
+		}
+		if na > nb {
+			return 1
+		}
+	}
+
+	// No prerelease > prerelease.
+	hasPreA := len(partsA) > 1
+	hasPreB := len(partsB) > 1
+	if !hasPreA && hasPreB {
+		return 1
+	}
+	if hasPreA && !hasPreB {
+		return -1
+	}
+	if hasPreA && hasPreB {
+		return strings.Compare(partsA[1], partsB[1])
+	}
+	return 0
+}
+
+func normalizeVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" || v == "dev" {
+		return ""
+	}
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	parts := strings.Split(strings.TrimPrefix(v, "v"), "+")[0]
+	parts = strings.Split(parts, "-")[0]
+	vs := strings.Split(parts, ".")
+	if len(vs) != 3 {
+		return ""
+	}
+	for _, p := range vs {
+		if _, err := strconv.Atoi(p); err != nil {
+			return ""
+		}
+	}
+	return v
 }
 
 func (u *SelfUpdater) latestVersion(ctx context.Context) (string, error) {
