@@ -241,6 +241,7 @@ Set these environment variables:
 | `jira_get_transitions` | List available transitions |
 | `jira_add_comment` | Add a comment to an issue |
 | `jira_add_worklog` | Log time against an issue |
+| `jira_list_boards` | List Jira Agile boards, optionally filtered by project |
 | `jira_list_sprints` | List sprints for a Jira Agile board |
 | `jira_get_sprint` | Get a sprint by its Agile ID |
 | `jira_get_active_sprint` | Get the active sprint for a board |

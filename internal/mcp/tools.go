@@ -92,6 +92,13 @@ func addWorklogTool() mcp.Tool {
 	)
 }
 
+func listBoardsTool() mcp.Tool {
+	return mcp.NewTool("jira_list_boards",
+		mcp.WithDescription("List Jira Agile boards, optionally filtered by project key."),
+		mcp.WithString("project_key", mcp.Description("Optional project key or id to filter boards")),
+	)
+}
+
 func listSprintsTool() mcp.Tool {
 	return mcp.NewTool("jira_list_sprints",
 		mcp.WithDescription("List sprints for a Jira Agile board."),

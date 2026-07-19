@@ -243,6 +243,61 @@ func TestAddWorklogRequest_Marshal(t *testing.T) {
 	}
 }
 
+func TestBoard_Unmarshal(t *testing.T) {
+	payload := `{
+		"id": 1,
+		"self": "https://jira/rest/agile/1.0/board/1",
+		"name": "Board 1",
+		"type": "scrum",
+		"location": {"projectId": 10000, "projectKey": "PROJ", "name": "Project"}
+	}`
+
+	var b Board
+	if err := json.Unmarshal([]byte(payload), &b); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if b.ID != 1 {
+		t.Errorf("expected id 1, got %d", b.ID)
+	}
+	if b.Name != "Board 1" {
+		t.Errorf("expected name Board 1, got %s", b.Name)
+	}
+	if b.Type != "scrum" {
+		t.Errorf("expected type scrum, got %s", b.Type)
+	}
+	if b.Location == nil || b.Location.ProjectKey != "PROJ" {
+		t.Errorf("expected location project key PROJ, got %+v", b.Location)
+	}
+}
+
+func TestBoardListResponse_Unmarshal(t *testing.T) {
+	payload := `{
+		"maxResults": 50,
+		"startAt": 0,
+		"isLast": true,
+		"values": [
+			{"id": 1, "name": "Board 1", "type": "scrum"},
+			{"id": 2, "name": "Board 2", "type": "kanban"}
+		]
+	}`
+
+	var res BoardListResponse
+	if err := json.Unmarshal([]byte(payload), &res); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if len(res.Values) != 2 {
+		t.Fatalf("expected 2 boards, got %d", len(res.Values))
+	}
+	if res.Values[0].Name != "Board 1" {
+		t.Errorf("expected Board 1, got %s", res.Values[0].Name)
+	}
+	if res.Values[1].Type != "kanban" {
+		t.Errorf("expected kanban type, got %s", res.Values[1].Type)
+	}
+}
+
 func TestSprint_Unmarshal(t *testing.T) {
 	payload := `{
 		"id": 123,

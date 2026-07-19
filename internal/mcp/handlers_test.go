@@ -23,6 +23,7 @@ type fakeJiraClient struct {
 	getTransitionsFn   func(ctx context.Context, key string) ([]jira.Transition, error)
 	addCommentFn       func(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error)
 	addWorklogFn       func(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error)
+	listBoardsFn       func(ctx context.Context, opts ...jira.Option) (jira.BoardList, error)
 	listSprintsFn      func(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error)
 	getSprintFn        func(ctx context.Context, sprintID string) (*jira.Sprint, error)
 	getActiveSprintFn  func(ctx context.Context, boardID string, opts ...jira.Option) (*jira.Sprint, error)
@@ -62,6 +63,9 @@ func (f *fakeJiraClient) AddComment(ctx context.Context, key string, req *jira.A
 func (f *fakeJiraClient) AddWorklog(ctx context.Context, key string, req *jira.AddWorklogRequest) (*jira.WorklogResponse, error) {
 	return f.addWorklogFn(ctx, key, req)
 }
+func (f *fakeJiraClient) ListBoards(ctx context.Context, opts ...jira.Option) (jira.BoardList, error) {
+	return f.listBoardsFn(ctx, opts...)
+}
 func (f *fakeJiraClient) ListSprints(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error) {
 	return f.listSprintsFn(ctx, boardID, opts...)
 }
@@ -100,6 +104,7 @@ func TestServer_ToolList(t *testing.T) {
 		"jira_get_transitions",
 		"jira_add_comment",
 		"jira_add_worklog",
+		"jira_list_boards",
 		"jira_list_sprints",
 		"jira_get_sprint",
 		"jira_get_active_sprint",
@@ -372,7 +377,7 @@ func TestHandleAddWorklog(t *testing.T) {
 func TestHandleJiraError_MapsToToolError(t *testing.T) {
 	client := &fakeJiraClient{
 		getIssueFn: func(ctx context.Context, key string) (*jira.Issue, error) {
-			return nil, &jira.JiraError{StatusCode: 404, Message: "issue not found"}
+			return nil, &jira.JiraError{StatusCode: 404, Message: "resource not found"}
 		},
 	}
 	srv := NewServer(client)
@@ -408,6 +413,49 @@ func TestHandleJiraError_DoesNotLeakToken(t *testing.T) {
 	text := result.Content[0].(mcp.TextContent).Text
 	if contains(text, "secret-token") {
 		t.Errorf("error leaks token: %s", text)
+	}
+}
+
+func TestHandleListBoards(t *testing.T) {
+	client := &fakeJiraClient{
+		listBoardsFn: func(ctx context.Context, opts ...jira.Option) (jira.BoardList, error) {
+			return jira.BoardList{
+				{ID: 1, Name: "Board 1", Type: "scrum"},
+			}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleListBoards(context.Background(), newRequest("jira_list_boards", map[string]any{"project_key": "MC"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "\"boards\"") {
+		t.Errorf("expected result to wrap boards, got %s", text)
+	}
+	if !contains(text, "Board 1") {
+		t.Errorf("expected result to contain Board 1, got %s", text)
+	}
+}
+
+func TestHandleListBoards_NoFilter(t *testing.T) {
+	client := &fakeJiraClient{
+		listBoardsFn: func(ctx context.Context, opts ...jira.Option) (jira.BoardList, error) {
+			return jira.BoardList{
+				{ID: 2, Name: "Board 2", Type: "kanban"},
+			}, nil
+		},
+	}
+	srv := NewServer(client)
+
+	result, err := srv.handleListBoards(context.Background(), mcp.CallToolRequest{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "Board 2") {
+		t.Errorf("expected result to contain Board 2, got %s", text)
 	}
 }
 

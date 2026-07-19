@@ -141,6 +141,32 @@ type WorklogResponse struct {
 	TimeSpent string `json:"timeSpent"`
 }
 
+// Board represents a Jira Agile board.
+type Board struct {
+	ID       int    `json:"id"`
+	Self     string `json:"self"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Location *struct {
+		ProjectID   int    `json:"projectId,omitempty"`
+		DisplayName string `json:"displayName,omitempty"`
+		Name        string `json:"name,omitempty"`
+		AvatarURI   string `json:"avatarURI,omitempty"`
+		ProjectKey  string `json:"projectKey,omitempty"`
+	} `json:"location,omitempty"`
+}
+
+// BoardList is a slice of Board values used when a handler returns multiple boards.
+type BoardList []Board
+
+// BoardListResponse is the paginated response from the Jira Agile board list endpoint.
+type BoardListResponse struct {
+	MaxResults int       `json:"maxResults"`
+	StartAt    int       `json:"startAt"`
+	IsLast     bool      `json:"isLast"`
+	Values     BoardList `json:"values"`
+}
+
 // Sprint represents a Jira Agile sprint.
 type Sprint struct {
 	ID            int    `json:"id"`

@@ -40,6 +40,13 @@ func WithState(state string) Option {
 	}
 }
 
+// WithProjectKey filters boards by project key or id.
+func WithProjectKey(key string) Option {
+	return func(v *url.Values) {
+		v.Set("projectKeyOrId", key)
+	}
+}
+
 // New creates a Jira client from configuration.
 // If httpClient is nil, a default client with a 30s timeout is used.
 func New(cfg config.Config, httpClient *http.Client) *Client {
@@ -269,6 +276,23 @@ func (c *Client) AddWorklog(ctx context.Context, key string, req *AddWorklogRequ
 		return nil, err
 	}
 	return &worklog, nil
+}
+
+// ListBoards returns Agile boards, optionally filtered by project key.
+func (c *Client) ListBoards(ctx context.Context, opts ...Option) (BoardList, error) {
+	query := url.Values{}
+	for _, opt := range opts {
+		opt(&query)
+	}
+	resp, err := c.doWithRetry(ctx, http.MethodGet, "/rest/agile/1.0/board", query, nil)
+	if err != nil {
+		return nil, err
+	}
+	var result BoardListResponse
+	if err := handleResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return result.Values, nil
 }
 
 // listSprintsQuery builds query values from options for sprint endpoints.

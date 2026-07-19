@@ -31,7 +31,7 @@ func MapHTTPError(statusCode int, messages []string, retryAfter string) error {
 	case 403:
 		return &JiraError{StatusCode: statusCode, Message: "permission denied"}
 	case 404:
-		return &JiraError{StatusCode: statusCode, Message: "issue not found"}
+		return &JiraError{StatusCode: statusCode, Message: "resource not found"}
 	case 429:
 		if retryAfter != "" {
 			return &JiraError{StatusCode: statusCode, Message: "rate limited; retry after " + retryAfter}

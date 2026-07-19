@@ -71,7 +71,7 @@ func TestClient_do_MapsError(t *testing.T) {
 			name:   "404",
 			status: 404,
 			body:   `{}`,
-			want:   "jira error 404: issue not found",
+			want:   "jira error 404: resource not found",
 		},
 		{
 			name:       "429",
@@ -582,7 +582,7 @@ func TestClient_GetIssue_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if err.Error() != "jira error 404: issue not found" {
+	if err.Error() != "jira error 404: resource not found" {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -677,7 +677,7 @@ func TestClient_ListSprints_BoardNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if err.Error() != "jira error 404: issue not found" {
+	if err.Error() != "jira error 404: resource not found" {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -802,5 +802,57 @@ func TestClient_SearchSprintByName_MissingName(t *testing.T) {
 	_, err := client.SearchSprintByName(context.Background(), "42", "")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestClient_ListBoards(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(BoardListResponse{Values: BoardList{
+			{ID: 1, Name: "Board 1", Type: "scrum"},
+			{ID: 2, Name: "Board 2", Type: "kanban"},
+		}})
+	})
+	defer server.Close()
+
+	boards, err := client.ListBoards(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(boards) != 2 {
+		t.Errorf("expected 2 boards, got %d", len(boards))
+	}
+}
+
+func TestClient_ListBoards_ByProjectKey(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/agile/1.0/board" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("projectKeyOrId") != "MC" {
+			t.Errorf("expected projectKeyOrId=MC, got %s", r.URL.Query().Get("projectKeyOrId"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(BoardListResponse{Values: BoardList{
+			{ID: 3, Name: "MC Board", Type: "scrum", Location: &struct {
+				ProjectID   int    `json:"projectId,omitempty"`
+				DisplayName string `json:"displayName,omitempty"`
+				Name        string `json:"name,omitempty"`
+				AvatarURI   string `json:"avatarURI,omitempty"`
+				ProjectKey  string `json:"projectKey,omitempty"`
+			}{ProjectID: 11897, ProjectKey: "MC"}},
+		}})
+	})
+	defer server.Close()
+
+	boards, err := client.ListBoards(context.Background(), WithProjectKey("MC"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(boards) != 1 || boards[0].Name != "MC Board" {
+		t.Errorf("unexpected boards: %+v", boards)
 	}
 }

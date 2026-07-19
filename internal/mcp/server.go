@@ -62,7 +62,7 @@ func (s *Server) ServeSSE(addr string) error {
 	}
 }
 
-// registerTools adds the 15 Jira tools to the MCP server.
+// registerTools adds the 16 Jira tools to the MCP server.
 func (s *Server) registerTools() {
 	for _, st := range s.toolDefinitions() {
 		s.mcp.AddTool(st.tool, st.handler)
@@ -83,6 +83,7 @@ func (s *Server) toolDefinitions() []serverTool {
 		{tool: getTransitionsTool(), handler: s.handleGetTransitions},
 		{tool: addCommentTool(), handler: s.handleAddComment},
 		{tool: addWorklogTool(), handler: s.handleAddWorklog},
+		{tool: listBoardsTool(), handler: s.handleListBoards},
 		{tool: listSprintsTool(), handler: s.handleListSprints},
 		{tool: getSprintTool(), handler: s.handleGetSprint},
 		{tool: getActiveSprintTool(), handler: s.handleGetActiveSprint},

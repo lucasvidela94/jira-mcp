@@ -36,9 +36,9 @@ func TestMapHTTPError(t *testing.T) {
 			want:       "jira error 403: permission denied",
 		},
 		{
-			name:       "404 issue",
+			name:       "404 not found",
 			statusCode: 404,
-			want:       "jira error 404: issue not found",
+			want:       "jira error 404: resource not found",
 		},
 		{
 			name:       "429 rate limited",
