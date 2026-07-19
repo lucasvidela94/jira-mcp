@@ -121,6 +121,23 @@ go install github.com/lucasvidela94/jira-mcp@latest
 
 This installs the binary only; you will still need to configure your MCP client manually.
 
+### Updating
+
+Because `jira-mcp` is a background MCP server, your MCP client does not update it automatically. Use the same channel you used to install it:
+
+| Install method | Update command |
+|---|---|
+| Homebrew | `brew upgrade jira-mcp` |
+| One-liner installer | Re-run the install script |
+| Docker | `docker pull ghcr.io/lucasvidela94/jira-mcp:latest` |
+| Go install | `go install github.com/lucasvidela94/jira-mcp@latest` |
+
+After updating, **restart your MCP client** so it reloads the new binary. Verify the version with:
+
+```bash
+jira-mcp --version
+```
+
 ### Review the installer before running it
 
 If you prefer to inspect the script instead of piping it directly to your shell:

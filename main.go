@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/lucasvidela94/jira-mcp/internal/config"
 	"github.com/lucasvidela94/jira-mcp/internal/jira"
@@ -13,6 +14,19 @@ import (
 
 // version is set by goreleaser at build time.
 var version = "dev"
+
+// resolveVersion returns the embedded version, or falls back to Go module build info.
+func resolveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+	return version
+}
 
 type runner interface {
 	ServeStdio() error
@@ -26,7 +40,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Println(version)
+		fmt.Println(resolveVersion())
 		os.Exit(0)
 	}
 
