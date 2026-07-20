@@ -13,7 +13,7 @@ import (
 
 type fakeJiraClient struct {
 	searchFn              func(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
-	getIssueFn            func(ctx context.Context, key string) (*jira.Issue, error)
+	getIssueFn            func(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error)
 	createIssueFn         func(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error)
 	updateIssueFn         func(ctx context.Context, key string, req *jira.UpdateIssueRequest) error
 	transitionIssueFn     func(ctx context.Context, key string, req *jira.TransitionIssueRequest) error
@@ -36,13 +36,14 @@ type fakeJiraClient struct {
 	createIssueLinkFn     func(ctx context.Context, req *jira.IssueLinkRequest) error
 	getRelatedIssuesFn    func(ctx context.Context, key string) ([]jira.LinkedIssue, error)
 	createChildIssueFn    func(ctx context.Context, parentKey string, req *jira.CreateChildIssueRequest) (*jira.Issue, error)
+	listUsersFn           func(ctx context.Context, query string, opts ...jira.Option) ([]jira.User, error)
 }
 
 func (f *fakeJiraClient) Search(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error) {
 	return f.searchFn(ctx, jql, opts...)
 }
-func (f *fakeJiraClient) GetIssue(ctx context.Context, key string) (*jira.Issue, error) {
-	return f.getIssueFn(ctx, key)
+func (f *fakeJiraClient) GetIssue(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error) {
+	return f.getIssueFn(ctx, key, opts...)
 }
 func (f *fakeJiraClient) CreateIssue(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error) {
 	return f.createIssueFn(ctx, req)
@@ -119,6 +120,13 @@ func (f *fakeJiraClient) CreateChildIssue(ctx context.Context, parentKey string,
 	return f.createChildIssueFn(ctx, parentKey, req)
 }
 
+func (f *fakeJiraClient) ListUsers(ctx context.Context, query string, opts ...jira.Option) ([]jira.User, error) {
+	if f.listUsersFn == nil {
+		return []jira.User{}, nil
+	}
+	return f.listUsersFn(ctx, query, opts...)
+}
+
 func newRequest(name string, args map[string]any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
@@ -157,6 +165,7 @@ func TestServer_ToolList(t *testing.T) {
 		"jira_create_issue_link",
 		"jira_get_related_issues",
 		"jira_create_child_issue",
+		"jira_list_users",
 	}
 
 	if len(tools) != len(expected) {
@@ -206,7 +215,7 @@ func TestHandleSearch_MissingRequiredParam(t *testing.T) {
 
 func TestHandleGetIssue(t *testing.T) {
 	client := &fakeJiraClient{
-		getIssueFn: func(ctx context.Context, key string) (*jira.Issue, error) {
+		getIssueFn: func(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error) {
 			return &jira.Issue{Key: key, ID: "10001", Fields: json.RawMessage(`{"summary":"Test"}`)}, nil
 		},
 	}
@@ -424,7 +433,7 @@ func TestHandleAddWorklog(t *testing.T) {
 
 func TestHandleJiraError_MapsToToolError(t *testing.T) {
 	client := &fakeJiraClient{
-		getIssueFn: func(ctx context.Context, key string) (*jira.Issue, error) {
+		getIssueFn: func(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error) {
 			return nil, &jira.JiraError{StatusCode: 404, Message: "resource not found"}
 		},
 	}
@@ -445,7 +454,7 @@ func TestHandleJiraError_MapsToToolError(t *testing.T) {
 
 func TestHandleJiraError_DoesNotLeakToken(t *testing.T) {
 	client := &fakeJiraClient{
-		getIssueFn: func(ctx context.Context, key string) (*jira.Issue, error) {
+		getIssueFn: func(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error) {
 			return nil, errors.New("request failed: JIRA_API_TOKEN=secret-token")
 		},
 	}

@@ -17,7 +17,7 @@ func (f *fakeClient) Search(ctx context.Context, jql string, opts ...jira.Option
 	return &jira.SearchResult{Total: 1, Issues: []jira.Issue{{Key: "PROJ-1"}}}, nil
 }
 
-func (f *fakeClient) GetIssue(ctx context.Context, key string) (*jira.Issue, error) {
+func (f *fakeClient) GetIssue(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error) {
 	return &jira.Issue{Key: key, ID: "100"}, nil
 }
 
@@ -67,6 +67,10 @@ func (f *fakeClient) GetSprint(ctx context.Context, sprintID string) (*jira.Spri
 
 func (f *fakeClient) SearchSprintByName(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error) {
 	return jira.SprintList{}, nil
+}
+
+func (f *fakeClient) ListUsers(ctx context.Context, query string, opts ...jira.Option) ([]jira.User, error) {
+	return []jira.User{{AccountID: "abc123", DisplayName: "John Doe", EmailAddress: "john@example.com"}}, nil
 }
 
 func TestRun_ListProjects(t *testing.T) {
@@ -132,5 +136,16 @@ func TestRun_NoArgs(t *testing.T) {
 	err := Run([]string{}, &fakeClient{})
 	if err == nil {
 		t.Fatal("expected error for no args")
+	}
+}
+
+func TestRun_ListUsers(t *testing.T) {
+	var buf bytes.Buffer
+	err := runListUsers(context.Background(), &fakeClient{}, &buf, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "John Doe") {
+		t.Errorf("expected John Doe in output, got %s", buf.String())
 	}
 }

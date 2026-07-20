@@ -101,6 +101,7 @@ func (s *Server) toolDefinitions() []serverTool {
 		{tool: createIssueLinkTool(), handler: s.handleCreateIssueLink},
 		{tool: getRelatedIssuesTool(), handler: s.handleGetRelatedIssues},
 		{tool: createChildIssueTool(), handler: s.handleCreateChildIssue},
+		{tool: listUsersTool(), handler: s.handleListUsers},
 	}
 
 	if len(s.enabledTools) == 0 {

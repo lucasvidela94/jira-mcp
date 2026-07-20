@@ -9,7 +9,7 @@ import (
 // JiraClient is the contract the MCP server needs from a Jira client.
 type JiraClient interface {
 	Search(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
-	GetIssue(ctx context.Context, key string) (*jira.Issue, error)
+	GetIssue(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error)
 	CreateIssue(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error)
 	UpdateIssue(ctx context.Context, key string, req *jira.UpdateIssueRequest) error
 	TransitionIssue(ctx context.Context, key string, req *jira.TransitionIssueRequest) error
@@ -32,6 +32,7 @@ type JiraClient interface {
 	CreateIssueLink(ctx context.Context, req *jira.IssueLinkRequest) error
 	GetRelatedIssues(ctx context.Context, key string) ([]jira.LinkedIssue, error)
 	CreateChildIssue(ctx context.Context, parentKey string, req *jira.CreateChildIssueRequest) (*jira.Issue, error)
+	ListUsers(ctx context.Context, query string, opts ...jira.Option) ([]jira.User, error)
 }
 
 var _ JiraClient = (*jira.Client)(nil)

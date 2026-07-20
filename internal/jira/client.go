@@ -47,6 +47,28 @@ func WithProjectKey(key string) Option {
 	}
 }
 
+// WithFields sets the fields to return in a GET request (e.g. GetIssue).
+// Sends ?fields=field1,field2 as a query parameter.
+func WithFields(fields []string) Option {
+	return func(v *url.Values) {
+		v.Set("fields", strings.Join(fields, ","))
+	}
+}
+
+// WithSearchFields sets custom fields for a search request body.
+func WithSearchFields(fields []string) Option {
+	return func(v *url.Values) {
+		v.Set(".fields", strings.Join(fields, ","))
+	}
+}
+
+// WithNextPageToken sets the pagination token for search.
+func WithNextPageToken(token string) Option {
+	return func(v *url.Values) {
+		v.Set(".nextPageToken", token)
+	}
+}
+
 // New creates a Jira client from configuration.
 // If httpClient is nil, a default client with a 30s timeout is used.
 func New(cfg config.Config, httpClient *http.Client) *Client {
@@ -153,6 +175,12 @@ func (c *Client) Search(ctx context.Context, jql string, opts ...Option) (*Searc
 			req.MaxResults = n
 		}
 	}
+	if v := query.Get(".nextPageToken"); v != "" {
+		req.NextPageToken = v
+	}
+	if v := query.Get(".fields"); v != "" {
+		req.Fields = strings.Split(v, ",")
+	}
 	resp, err := c.doWithRetry(ctx, http.MethodPost, "/rest/api/3/search/jql", nil, req)
 	if err != nil {
 		return nil, err
@@ -165,8 +193,12 @@ func (c *Client) Search(ctx context.Context, jql string, opts ...Option) (*Searc
 }
 
 // GetIssue fetches a single issue by key.
-func (c *Client) GetIssue(ctx context.Context, key string) (*Issue, error) {
-	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key)), nil, nil)
+func (c *Client) GetIssue(ctx context.Context, key string, opts ...Option) (*Issue, error) {
+	query := url.Values{}
+	for _, opt := range opts {
+		opt(&query)
+	}
+	resp, err := c.doWithRetry(ctx, http.MethodGet, fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key)), query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -454,6 +486,26 @@ func (c *Client) GetRelatedIssues(ctx context.Context, key string) ([]LinkedIssu
 		return nil, err
 	}
 	return parseIssueLinks(issue.Fields)
+}
+
+// ListUsers searches Jira users by query string.
+// If query is non-empty, it searches for users matching the query.
+// If query is empty, it returns visible users (up to maxResults).
+func (c *Client) ListUsers(ctx context.Context, query string, opts ...Option) ([]User, error) {
+	q := url.Values{}
+	for _, opt := range opts {
+		opt(&q)
+	}
+	q.Set("query", query)
+	resp, err := c.doWithRetry(ctx, http.MethodGet, "/rest/api/3/user/search", q, nil)
+	if err != nil {
+		return nil, err
+	}
+	var users []User
+	if err := handleResponse(resp, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 // CreateChildIssue creates a sub-task or child issue under a parent.

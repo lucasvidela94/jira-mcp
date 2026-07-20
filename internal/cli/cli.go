@@ -16,7 +16,7 @@ import (
 // JiraClient is the subset of Jira operations the CLI needs.
 type JiraClient interface {
 	Search(ctx context.Context, jql string, opts ...jira.Option) (*jira.SearchResult, error)
-	GetIssue(ctx context.Context, key string) (*jira.Issue, error)
+	GetIssue(ctx context.Context, key string, opts ...jira.Option) (*jira.Issue, error)
 	ListProjects(ctx context.Context) ([]jira.Project, error)
 	ListBoards(ctx context.Context, opts ...jira.Option) (jira.BoardList, error)
 	ListSprints(ctx context.Context, boardID string, opts ...jira.Option) (jira.SprintList, error)
@@ -29,6 +29,7 @@ type JiraClient interface {
 	GetDevelopmentInfo(ctx context.Context, key string) (*jira.DevelopmentInformation, error)
 	GetSprint(ctx context.Context, sprintID string) (*jira.Sprint, error)
 	SearchSprintByName(ctx context.Context, boardID string, name string, opts ...jira.Option) (jira.SprintList, error)
+	ListUsers(ctx context.Context, query string, opts ...jira.Option) ([]jira.User, error)
 }
 
 // Run dispatches CLI subcommands.
@@ -101,6 +102,8 @@ func Run(args []string, client JiraClient) error {
 			return errors.New("usage: jira-mcp get-development-info <issue-key>")
 		}
 		return runGetDevelopmentInfo(ctx, client, cmdArgs[0], os.Stdout, hasPretty(cmdArgs))
+	case "list-users":
+		return runListUsers(ctx, client, os.Stdout, hasPretty(cmdArgs))
 	case "-h", "--help", "help":
 		fmt.Fprint(os.Stdout, helpText())
 		return nil
@@ -122,6 +125,7 @@ func helpText() string {
   get-issue-history <key>        Get issue changelog
   get-related-issues <key>       Get linked issues
   get-development-info <key>     Get linked PRs/branches/commits
+  list-users                     List/search Jira users
 `
 }
 
@@ -251,4 +255,12 @@ func runGetDevelopmentInfo(ctx context.Context, client JiraClient, key string, o
 		return err
 	}
 	return writeJSON(out, info, pretty)
+}
+
+func runListUsers(ctx context.Context, client JiraClient, out io.Writer, pretty bool) error {
+	users, err := client.ListUsers(ctx, "")
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, users, pretty)
 }

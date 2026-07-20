@@ -7,6 +7,8 @@ func searchTool() mcp.Tool {
 		mcp.WithDescription("Search Jira issues using JQL."),
 		mcp.WithString("jql", mcp.Description("JQL query string"), mcp.Required()),
 		mcp.WithNumber("max_results", mcp.Description("Maximum number of issues to return")),
+		mcp.WithString("next_page_token", mcp.Description("Pagination token for next page of results")),
+		mcp.WithArray("fields", mcp.Description("Optional list of fields to return (e.g. description, priority, created, labels)")),
 	)
 }
 
@@ -14,6 +16,7 @@ func getIssueTool() mcp.Tool {
 	return mcp.NewTool("jira_get_issue",
 		mcp.WithDescription("Get a Jira issue by key."),
 		mcp.WithString("issue_key", mcp.Description("Jira issue key, e.g. PROJ-1"), mcp.Required()),
+		mcp.WithArray("fields", mcp.Description("Optional list of fields to return (e.g. description, priority, created, labels)")),
 	)
 }
 
@@ -191,5 +194,13 @@ func searchSprintByNameTool() mcp.Tool {
 		mcp.WithString("board_id", mcp.Description("Board identifier"), mcp.Required()),
 		mcp.WithString("name", mcp.Description("Substring to match against sprint names"), mcp.Required()),
 		mcp.WithNumber("max_results", mcp.Description("Maximum number of sprints to search")),
+	)
+}
+
+func listUsersTool() mcp.Tool {
+	return mcp.NewTool("jira_list_users",
+		mcp.WithDescription("Search Jira users by query string."),
+		mcp.WithString("query", mcp.Description("Search query string (optional)")),
+		mcp.WithNumber("max_results", mcp.Description("Maximum number of users to return")),
 	)
 }

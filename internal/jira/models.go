@@ -23,9 +23,10 @@ type SearchResult struct {
 
 // SearchRequest is the POST body for the /rest/api/3/search/jql endpoint.
 type SearchRequest struct {
-	JQL        string   `json:"jql"`
-	MaxResults int      `json:"maxResults,omitempty"`
-	Fields     []string `json:"fields,omitempty"`
+	JQL           string   `json:"jql"`
+	MaxResults    int      `json:"maxResults,omitempty"`
+	Fields        []string `json:"fields,omitempty"`
+	NextPageToken string  `json:"nextPageToken,omitempty"`
 }
 
 // Project is a minimal Jira project representation.
