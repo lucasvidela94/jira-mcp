@@ -58,6 +58,7 @@ func (s *Server) handleUpdateIssue(ctx context.Context, request mcp.CallToolRequ
 
 	req := &jira.UpdateIssueRequest{
 		Summary:     optionalString(args, "summary"),
+		IssueType:   optionalString(args, "issue_type"),
 		Description: optionalString(args, "description"),
 		Fields:      fields,
 	}

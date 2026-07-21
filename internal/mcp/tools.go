@@ -26,7 +26,7 @@ func createIssueTool() mcp.Tool {
 		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
 		mcp.WithString("issue_type", mcp.Description("Issue type name"), mcp.Required()),
 		mcp.WithString("summary", mcp.Description("Issue summary"), mcp.Required()),
-		mcp.WithString("description", mcp.Description("Optional plain-text description")),
+		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
 		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
 	)
 }
@@ -36,7 +36,8 @@ func updateIssueTool() mcp.Tool {
 		mcp.WithDescription("Update an existing Jira issue."),
 		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
 		mcp.WithString("summary", mcp.Description("New summary")),
-		mcp.WithString("description", mcp.Description("New plain-text description")),
+		mcp.WithString("issue_type", mcp.Description("New issue type name")),
+		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
 		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
 	)
 }
@@ -183,7 +184,7 @@ func createChildIssueTool() mcp.Tool {
 		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
 		mcp.WithString("issue_type", mcp.Description("Issue type name (usually Sub-task)"), mcp.Required()),
 		mcp.WithString("summary", mcp.Description("Issue summary"), mcp.Required()),
-		mcp.WithString("description", mcp.Description("Optional plain-text description")),
+		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
 		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
 	)
 }

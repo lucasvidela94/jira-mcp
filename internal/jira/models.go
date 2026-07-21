@@ -52,6 +52,27 @@ type TransitionsResponse struct {
 	Transitions []Transition `json:"transitions"`
 }
 
+// plainTextToADF wraps a plain string in Atlassian Document Format so that Jira
+// accepts it as a description. Reuses the same the same ADF structure for every
+// call — one doc node, one paragraph, one text node.
+func plainTextToADF(text string) map[string]any {
+	return map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{
+			map[string]any{
+				"type": "paragraph",
+				"content": []any{
+					map[string]any{
+						"type": "text",
+						"text": text,
+					},
+				},
+			},
+		},
+	}
+}
+
 // CreateIssueRequest is the payload used to create a new issue.
 type CreateIssueRequest struct {
 	ProjectKey  string         `json:"-"`
@@ -69,7 +90,7 @@ func (r CreateIssueRequest) MarshalJSON() ([]byte, error) {
 		"summary":   r.Summary,
 	}
 	if r.Description != "" {
-		fields["description"] = r.Description
+		fields["description"] = plainTextToADF(r.Description)
 	}
 	for k, v := range r.Fields {
 		fields[k] = v
@@ -80,6 +101,7 @@ func (r CreateIssueRequest) MarshalJSON() ([]byte, error) {
 // UpdateIssueRequest is the payload used to update an issue.
 type UpdateIssueRequest struct {
 	Summary     string         `json:"-"`
+	IssueType   string         `json:"-"`
 	Description string         `json:"-"`
 	Fields      map[string]any `json:"-"`
 }
@@ -90,8 +112,11 @@ func (r UpdateIssueRequest) MarshalJSON() ([]byte, error) {
 	if r.Summary != "" {
 		fields["summary"] = r.Summary
 	}
+	if r.IssueType != "" {
+		fields["issuetype"] = map[string]any{"name": r.IssueType}
+	}
 	if r.Description != "" {
-		fields["description"] = r.Description
+		fields["description"] = plainTextToADF(r.Description)
 	}
 	for k, v := range r.Fields {
 		fields[k] = v
@@ -377,7 +402,7 @@ func (r CreateChildIssueRequest) MarshalJSON() ([]byte, error) {
 		"parent":    map[string]any{"key": r.ParentKey},
 	}
 	if r.Description != "" {
-		fields["description"] = r.Description
+		fields["description"] = plainTextToADF(r.Description)
 	}
 	for k, v := range r.Fields {
 		fields[k] = v

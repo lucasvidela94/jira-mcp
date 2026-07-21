@@ -36,8 +36,24 @@ func TestCreateIssueRequest_Marshal(t *testing.T) {
 	if fields["summary"] != "A sample issue" {
 		t.Errorf("expected summary, got %v", fields["summary"])
 	}
-	if fields["description"] != "Detailed description" {
-		t.Errorf("expected description, got %v", fields["description"])
+	desc := fields["description"].(map[string]any)
+	if desc["type"] != "doc" || desc["version"] != float64(1) {
+		t.Errorf("expected ADF doc, got %v", desc)
+	}
+	content := desc["content"].([]any)
+	if len(content) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(content))
+	}
+	p := content[0].(map[string]any)
+	if p["type"] != "paragraph" {
+		t.Errorf("expected paragraph, got %v", p["type"])
+	}
+	texts := p["content"].([]any)
+	if len(texts) != 1 {
+		t.Fatalf("expected 1 text node, got %d", len(texts))
+	}
+	if texts[0].(map[string]any)["text"] != "Detailed description" {
+		t.Errorf("expected text content, got %v", texts[0])
 	}
 	if fields["customfield_10001"] != "value" {
 		t.Errorf("expected custom field, got %v", fields["customfield_10001"])
@@ -47,6 +63,7 @@ func TestCreateIssueRequest_Marshal(t *testing.T) {
 func TestUpdateIssueRequest_Marshal(t *testing.T) {
 	req := UpdateIssueRequest{
 		Summary:     "Updated summary",
+		IssueType:   "Task",
 		Description: "Updated description",
 		Fields: map[string]any{
 			"labels": []string{"bug"},
@@ -67,8 +84,21 @@ func TestUpdateIssueRequest_Marshal(t *testing.T) {
 	if fields["summary"] != "Updated summary" {
 		t.Errorf("expected summary, got %v", fields["summary"])
 	}
-	if fields["description"] != "Updated description" {
-		t.Errorf("expected description, got %v", fields["description"])
+	if fields["issuetype"].(map[string]any)["name"] != "Task" {
+		t.Errorf("expected issue type Task, got %v", fields["issuetype"])
+	}
+	desc := fields["description"].(map[string]any)
+	if desc["type"] != "doc" || desc["version"] != float64(1) {
+		t.Errorf("expected ADF doc, got %v", desc)
+	}
+	content := desc["content"].([]any)
+	if len(content) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(content))
+	}
+	p := content[0].(map[string]any)
+	texts := p["content"].([]any)
+	if texts[0].(map[string]any)["text"] != "Updated description" {
+		t.Errorf("expected text content, got %v", texts[0])
 	}
 	labels := fields["labels"].([]any)
 	if len(labels) != 1 || labels[0] != "bug" {
