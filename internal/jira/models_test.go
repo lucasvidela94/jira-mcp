@@ -5,12 +5,61 @@ import (
 	"testing"
 )
 
+func TestCreateIssueRequest_Marshal_LegacyByteEquivalent(t *testing.T) {
+	// The legacy string path must continue to produce ADF bytes identical to
+	// the pre-change behaviour: a single paragraph wrapping the input text.
+	req := CreateIssueRequest{
+		ProjectKey:  "PROJ",
+		IssueType:   "Task",
+		Summary:     "S",
+		Description: json.RawMessage(`"hello"`),
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var got struct {
+		Fields struct {
+			Description struct {
+				Type    string `json:"type"`
+				Version int    `json:"version"`
+				Content []struct {
+					Type    string `json:"type"`
+					Content []struct {
+						Type string `json:"type"`
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"content"`
+			} `json:"description"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Fields.Description.Type != "doc" {
+		t.Errorf("type: got %q want doc", got.Fields.Description.Type)
+	}
+	if got.Fields.Description.Version != 1 {
+		t.Errorf("version: got %d want 1", got.Fields.Description.Version)
+	}
+	if len(got.Fields.Description.Content) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(got.Fields.Description.Content))
+	}
+	p := got.Fields.Description.Content[0]
+	if p.Type != "paragraph" || len(p.Content) != 1 {
+		t.Fatalf("paragraph: %+v", p)
+	}
+	if p.Content[0].Type != "text" || p.Content[0].Text != "hello" {
+		t.Errorf("text node: %+v", p.Content[0])
+	}
+}
+
 func TestCreateIssueRequest_Marshal(t *testing.T) {
 	req := CreateIssueRequest{
 		ProjectKey:  "PROJ",
 		IssueType:   "Task",
 		Summary:     "A sample issue",
-		Description: "Detailed description",
+		Description: json.RawMessage(`"Detailed description"`),
 		Fields: map[string]any{
 			"customfield_10001": "value",
 		},
@@ -60,11 +109,108 @@ func TestCreateIssueRequest_Marshal(t *testing.T) {
 	}
 }
 
+func TestUpdateIssueRequest_Marshal_ADFObject_EmbedsVerbatim(t *testing.T) {
+	// Caller-supplied ADF object should be embedded byte-equal into fields.description.
+	input := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Title"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"one"}]}]}]}]}`)
+	req := UpdateIssueRequest{
+		Summary:     "Updated",
+		Description: input,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	fields := raw["fields"]
+	var fieldsMap map[string]json.RawMessage
+	if err := json.Unmarshal(fields, &fieldsMap); err != nil {
+		t.Fatalf("unmarshal fields failed: %v", err)
+	}
+
+	got := fieldsMap["description"]
+	if string(got) != string(input) {
+		t.Errorf("description not byte-equal:\n want: %s\n got:  %s", input, got)
+	}
+}
+
+func TestCreateIssueRequest_Marshal_ADFObject_EmbedsVerbatim(t *testing.T) {
+	input := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Hi"}]}]}`)
+	req := CreateIssueRequest{
+		ProjectKey:  "PROJ",
+		IssueType:   "Task",
+		Summary:     "S",
+		Description: input,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	var fieldsMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw["fields"], &fieldsMap); err != nil {
+		t.Fatalf("unmarshal fields failed: %v", err)
+	}
+	if string(fieldsMap["description"]) != string(input) {
+		t.Errorf("description not byte-equal:\n want: %s\n got:  %s", input, fieldsMap["description"])
+	}
+}
+
+func TestCreateChildIssueRequest_Marshal_ADFObject_EmbedsVerbatim(t *testing.T) {
+	input := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"child"}]}]}`)
+	req := CreateChildIssueRequest{
+		ParentKey:   "PROJ-1",
+		ProjectKey:  "PROJ",
+		IssueType:   "Sub-task",
+		Summary:     "child",
+		Description: input,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	var fieldsMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw["fields"], &fieldsMap); err != nil {
+		t.Fatalf("unmarshal fields failed: %v", err)
+	}
+	if string(fieldsMap["description"]) != string(input) {
+		t.Errorf("description not byte-equal:\n want: %s\n got:  %s", input, fieldsMap["description"])
+	}
+}
+
+func TestUpdateIssueRequest_Marshal_BothSet_ReturnsError(t *testing.T) {
+	req := UpdateIssueRequest{
+		Summary:     "S",
+		Description: json.RawMessage(`"foo"`),
+		Fields: map[string]any{
+			"description": map[string]any{"type": "doc", "version": 1, "content": []any{}},
+		},
+	}
+	if _, err := json.Marshal(req); err == nil {
+		t.Fatal("expected error when both top-level description and fields.description are set")
+	}
+}
+
 func TestUpdateIssueRequest_Marshal(t *testing.T) {
 	req := UpdateIssueRequest{
 		Summary:     "Updated summary",
 		IssueType:   "Task",
-		Description: "Updated description",
+		Description: json.RawMessage(`"Updated description"`),
 		Fields: map[string]any{
 			"labels": []string{"bug"},
 		},

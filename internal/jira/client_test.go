@@ -249,7 +249,7 @@ func TestClient_CreateIssue(t *testing.T) {
 		ProjectKey:  "PROJ",
 		IssueType:   "Task",
 		Summary:     "New issue",
-		Description: "Description",
+		Description: json.RawMessage(`"Description"`),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

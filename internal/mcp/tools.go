@@ -1,6 +1,10 @@
 package mcp
 
-import "github.com/mark3labs/mcp-go/mcp"
+import (
+	"encoding/json"
+
+	"github.com/mark3labs/mcp-go/mcp"
+)
 
 func searchTool() mcp.Tool {
 	return mcp.NewTool("jira_search",
@@ -20,25 +24,75 @@ func getIssueTool() mcp.Tool {
 	)
 }
 
+// createIssueTool and updateIssueTool use NewToolWithRawSchema because the
+// `description` field is polymorphic (string OR pre-built ADF object) and
+// mark3labs/mcp-go v0.44.0 has no `oneOf`/`anyOf` combinator in the typed
+// builder API. Hand-rolling the JSON Schema is the only supported path.
+const createIssueToolSchema = `{
+  "type": "object",
+  "properties": {
+    "project_key": {"type": "string", "description": "Project key"},
+    "issue_type":  {"type": "string", "description": "Issue type name"},
+    "summary":     {"type": "string", "description": "Issue summary"},
+    "description": {
+      "oneOf": [
+        {"type": "string", "description": "Plain-text description (automatically converted to ADF)"},
+        {
+          "type": "object",
+          "required": ["type", "version", "content"],
+          "properties": {
+            "type":    {"type": "string", "enum": ["doc"]},
+            "version": {"type": "number", "enum": [1]},
+            "content": {"type": "array"}
+          },
+          "description": "Pre-built ADF document object (rich text: headings, lists, links, etc.)"
+        }
+      ]
+    },
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+  },
+  "required": ["project_key", "issue_type", "summary"]
+}`
+
+const updateIssueToolSchema = `{
+  "type": "object",
+  "properties": {
+    "issue_key":   {"type": "string", "description": "Issue key"},
+    "summary":     {"type": "string", "description": "New summary"},
+    "issue_type":  {"type": "string", "description": "New issue type name"},
+    "description": {
+      "oneOf": [
+        {"type": "string", "description": "Plain-text description (automatically converted to ADF)"},
+        {
+          "type": "object",
+          "required": ["type", "version", "content"],
+          "properties": {
+            "type":    {"type": "string", "enum": ["doc"]},
+            "version": {"type": "number", "enum": [1]},
+            "content": {"type": "array"}
+          },
+          "description": "Pre-built ADF document object (rich text: headings, lists, links, etc.)"
+        }
+      ]
+    },
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+  },
+  "required": ["issue_key"]
+}`
+
 func createIssueTool() mcp.Tool {
-	return mcp.NewTool("jira_create_issue",
-		mcp.WithDescription("Create a new Jira issue."),
-		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
-		mcp.WithString("issue_type", mcp.Description("Issue type name"), mcp.Required()),
-		mcp.WithString("summary", mcp.Description("Issue summary"), mcp.Required()),
-		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
-		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
+	return mcp.NewToolWithRawSchema(
+		"jira_create_issue",
+		"Create a new Jira issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text: headings, bullets, links, etc.).",
+		json.RawMessage(createIssueToolSchema),
 	)
 }
 
 func updateIssueTool() mcp.Tool {
-	return mcp.NewTool("jira_update_issue",
-		mcp.WithDescription("Update an existing Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
-		mcp.WithString("summary", mcp.Description("New summary")),
-		mcp.WithString("issue_type", mcp.Description("New issue type name")),
-		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
-		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
+	return mcp.NewToolWithRawSchema(
+		"jira_update_issue",
+		"Update an existing Jira issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text: headings, bullets, links, etc.).",
+		json.RawMessage(updateIssueToolSchema),
 	)
 }
 
@@ -61,7 +115,7 @@ func assignIssueTool() mcp.Tool {
 func deleteIssueTool() mcp.Tool {
 	return mcp.NewTool("jira_delete_issue",
 		mcp.WithDescription("Delete a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 	)
 }
 
@@ -74,14 +128,14 @@ func listProjectsTool() mcp.Tool {
 func getTransitionsTool() mcp.Tool {
 	return mcp.NewTool("jira_get_transitions",
 		mcp.WithDescription("List available transitions for a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 	)
 }
 
 func addCommentTool() mcp.Tool {
 	return mcp.NewTool("jira_add_comment",
 		mcp.WithDescription("Add a comment to a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 		mcp.WithString("body", mcp.Description("Comment body"), mcp.Required()),
 	)
 }
@@ -89,8 +143,8 @@ func addCommentTool() mcp.Tool {
 func addWorklogTool() mcp.Tool {
 	return mcp.NewTool("jira_add_worklog",
 		mcp.WithDescription("Add a worklog to a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
-		mcp.WithString("time_spent", mcp.Description("Time spent, e.g. 1h30m"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
+		mcp.WithString("time_spent", mcp.Description("Time spent, e.g. 1h"), mcp.Required()),
 		mcp.WithString("comment", mcp.Description("Optional worklog comment")),
 		mcp.WithString("started", mcp.Description("Optional start time in ISO-8601")),
 	)
@@ -129,7 +183,7 @@ func getActiveSprintTool() mcp.Tool {
 func getIssueHistoryTool() mcp.Tool {
 	return mcp.NewTool("jira_get_issue_history",
 		mcp.WithDescription("Get the change history (changelog) of a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 	)
 }
 
@@ -142,7 +196,7 @@ func listProjectVersionsTool() mcp.Tool {
 
 func getVersionTool() mcp.Tool {
 	return mcp.NewTool("jira_get_version",
-		mcp.WithDescription("Get a Jira version by its ID."),
+		mcp.WithDescription("Get a Jira project version."),
 		mcp.WithString("version_id", mcp.Description("Version identifier"), mcp.Required()),
 	)
 }
@@ -150,7 +204,7 @@ func getVersionTool() mcp.Tool {
 func getDevelopmentInfoTool() mcp.Tool {
 	return mcp.NewTool("jira_get_development_info",
 		mcp.WithDescription("Get linked pull requests, branches, and commits for a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 	)
 }
 
@@ -173,19 +227,44 @@ func createIssueLinkTool() mcp.Tool {
 func getRelatedIssuesTool() mcp.Tool {
 	return mcp.NewTool("jira_get_related_issues",
 		mcp.WithDescription("Get issues linked to a given Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Jira issue key"), mcp.Required()),
+		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
 	)
 }
 
+// createChildIssueTool also accepts a polymorphic description. Reusing the raw
+// schema approach for consistency with the create/update pair above.
+const createChildIssueToolSchema = `{
+  "type": "object",
+  "properties": {
+    "parent_key":  {"type": "string", "description": "Parent issue key"},
+    "project_key": {"type": "string", "description": "Project key"},
+    "issue_type":  {"type": "string", "description": "Issue type name (usually Sub-task)"},
+    "summary":     {"type": "string", "description": "Issue summary"},
+    "description": {
+      "oneOf": [
+        {"type": "string", "description": "Plain-text description (automatically converted to ADF)"},
+        {
+          "type": "object",
+          "required": ["type", "version", "content"],
+          "properties": {
+            "type":    {"type": "string", "enum": ["doc"]},
+            "version": {"type": "number", "enum": [1]},
+            "content": {"type": "array"}
+          },
+          "description": "Pre-built ADF document object (rich text: headings, lists, links, etc.)"
+        }
+      ]
+    },
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+  },
+  "required": ["parent_key", "project_key", "issue_type", "summary"]
+}`
+
 func createChildIssueTool() mcp.Tool {
-	return mcp.NewTool("jira_create_child_issue",
-		mcp.WithDescription("Create a sub-task or child issue under a parent issue."),
-		mcp.WithString("parent_key", mcp.Description("Parent issue key"), mcp.Required()),
-		mcp.WithString("project_key", mcp.Description("Project key"), mcp.Required()),
-		mcp.WithString("issue_type", mcp.Description("Issue type name (usually Sub-task)"), mcp.Required()),
-		mcp.WithString("summary", mcp.Description("Issue summary"), mcp.Required()),
-		mcp.WithString("description", mcp.Description("Optional plain-text description (automatically converted to ADF format)")),
-		mcp.WithObject("fields", mcp.Description("Optional additional fields as a JSON object")),
+	return mcp.NewToolWithRawSchema(
+		"jira_create_child_issue",
+		"Create a sub-task or child issue under a parent issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text).",
+		json.RawMessage(createChildIssueToolSchema),
 	)
 }
 

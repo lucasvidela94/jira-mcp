@@ -1,6 +1,11 @@
 package jira
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"sort"
+)
 
 // Issue represents a Jira issue returned by the REST API.
 type Issue struct {
@@ -26,7 +31,7 @@ type SearchRequest struct {
 	JQL           string   `json:"jql"`
 	MaxResults    int      `json:"maxResults,omitempty"`
 	Fields        []string `json:"fields,omitempty"`
-	NextPageToken string  `json:"nextPageToken,omitempty"`
+	NextPageToken string   `json:"nextPageToken,omitempty"`
 }
 
 // Project is a minimal Jira project representation.
@@ -73,55 +78,174 @@ func plainTextToADF(text string) map[string]any {
 	}
 }
 
+// resolveDescription turns the polymorphic Description into a value that
+// belongs inside fields.description, or returns ok=false when nothing should be
+// written. The mutual-exclusion with Fields["description"] is enforced here
+// so every marshaler that uses Description shares the same rule.
+//
+// Description is json.RawMessage: when its first byte is a JSON string quote
+// ('"'), it carries a plain-text payload that must be wrapped via
+// plainTextToADF; otherwise it is a pre-built ADF document that must be
+// embedded verbatim. The verbatim branch is returned as json.RawMessage so the
+// caller can splice it into a json.Marshal output without re-encoding.
+func resolveDescription(description json.RawMessage, fields map[string]any) (json.RawMessage, bool, error) {
+	if len(description) == 0 {
+		if _, has := fields["description"]; has {
+			return nil, false, fmt.Errorf("description provided in fields overrides top-level description: do not set both")
+		}
+		return nil, false, nil
+	}
+	if _, has := fields["description"]; has {
+		return nil, false, fmt.Errorf("description provided in both top-level argument and fields: choose one")
+	}
+	if description[0] == '"' {
+		var s string
+		if err := json.Unmarshal(description, &s); err != nil {
+			return nil, false, fmt.Errorf("description: %w", err)
+		}
+		adf, err := json.Marshal(plainTextToADF(s))
+		if err != nil {
+			return nil, false, fmt.Errorf("description: %w", err)
+		}
+		return adf, true, nil
+	}
+	// Already an ADF object — embed verbatim. Return the raw bytes so the
+	// outer marshaler does not re-encode and corrupt byte-equality.
+	return description, true, nil
+}
+
+// toRaw marshals any value to json.RawMessage, used to populate a
+// map[string]json.RawMessage without losing the raw-bytes path for description.
+func toRaw(v any) (json.RawMessage, error) {
+	return json.Marshal(v)
+}
+
+// marshalFieldsWrapper encodes {"fields": <fields>} as JSON, preserving the
+// byte-equal property of any pre-marshaled values inside fields. It does not
+// re-marshal the inner map; instead it sorts the keys (so output is
+// deterministic) and writes raw bytes via an encoder on a buffer.
+func marshalFieldsWrapper(fields map[string]json.RawMessage) ([]byte, error) {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buf bytes.Buffer
+	buf.WriteString(`{"fields":{`)
+	for i, k := range keys {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		kb, err := json.Marshal(k)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(kb)
+		buf.WriteByte(':')
+		buf.Write(fields[k])
+	}
+	buf.WriteString(`}}`)
+	return buf.Bytes(), nil
+}
+
 // CreateIssueRequest is the payload used to create a new issue.
+//
+// Description is polymorphic: it can hold a JSON-encoded plain string
+// (`"hello"`) which is wrapped via plainTextToADF, or a pre-built ADF
+// document object (e.g. `{"type":"doc",...}`) which is embedded verbatim.
+// The marshaler branches on the first byte of Description to decide between
+// the two paths. Callers must not also set Fields["description"]; the
+// marshaler returns an error if both are present.
 type CreateIssueRequest struct {
-	ProjectKey  string         `json:"-"`
-	IssueType   string         `json:"-"`
-	Summary     string         `json:"-"`
-	Description string         `json:"-"`
-	Fields      map[string]any `json:"-"`
+	ProjectKey  string          `json:"-"`
+	IssueType   string          `json:"-"`
+	Summary     string          `json:"-"`
+	Description json.RawMessage `json:"-"`
+	Fields      map[string]any  `json:"-"`
 }
 
 // MarshalJSON encodes the request into the shape Jira expects.
+//
+// The fields map is built as map[string]json.RawMessage so the verbatim ADF
+// path stays byte-equal to the caller's input. The Fields merge loop
+// re-encodes any user-supplied map values, but that was the pre-existing
+// behaviour and is not part of the polymorphism contract.
 func (r CreateIssueRequest) MarshalJSON() ([]byte, error) {
-	fields := map[string]any{
-		"project":   map[string]any{"key": r.ProjectKey},
-		"issuetype": map[string]any{"name": r.IssueType},
-		"summary":   r.Summary,
+	fields := map[string]json.RawMessage{}
+	for _, kv := range []struct {
+		key string
+		val any
+	}{
+		{"project", map[string]any{"key": r.ProjectKey}},
+		{"issuetype", map[string]any{"name": r.IssueType}},
+		{"summary", r.Summary},
+	} {
+		raw, err := toRaw(kv.val)
+		if err != nil {
+			return nil, err
+		}
+		fields[kv.key] = raw
 	}
-	if r.Description != "" {
-		fields["description"] = plainTextToADF(r.Description)
+	desc, ok, err := resolveDescription(r.Description, r.Fields)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		fields["description"] = desc
 	}
 	for k, v := range r.Fields {
-		fields[k] = v
+		raw, err := toRaw(v)
+		if err != nil {
+			return nil, err
+		}
+		fields[k] = raw
 	}
-	return json.Marshal(map[string]any{"fields": fields})
+	return marshalFieldsWrapper(fields)
 }
 
 // UpdateIssueRequest is the payload used to update an issue.
+// See CreateIssueRequest for the polymorphic Description contract.
 type UpdateIssueRequest struct {
-	Summary     string         `json:"-"`
-	IssueType   string         `json:"-"`
-	Description string         `json:"-"`
-	Fields      map[string]any `json:"-"`
+	Summary     string          `json:"-"`
+	IssueType   string          `json:"-"`
+	Description json.RawMessage `json:"-"`
+	Fields      map[string]any  `json:"-"`
 }
 
 // MarshalJSON encodes the update payload into the shape Jira expects.
+// See CreateIssueRequest.MarshalJSON for the map[string]json.RawMessage rationale.
 func (r UpdateIssueRequest) MarshalJSON() ([]byte, error) {
-	fields := map[string]any{}
+	fields := map[string]json.RawMessage{}
 	if r.Summary != "" {
-		fields["summary"] = r.Summary
+		summaryRaw, err := toRaw(r.Summary)
+		if err != nil {
+			return nil, err
+		}
+		fields["summary"] = summaryRaw
 	}
 	if r.IssueType != "" {
-		fields["issuetype"] = map[string]any{"name": r.IssueType}
+		raw, err := toRaw(map[string]any{"name": r.IssueType})
+		if err != nil {
+			return nil, err
+		}
+		fields["issuetype"] = raw
 	}
-	if r.Description != "" {
-		fields["description"] = plainTextToADF(r.Description)
+	desc, ok, err := resolveDescription(r.Description, r.Fields)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		fields["description"] = desc
 	}
 	for k, v := range r.Fields {
-		fields[k] = v
+		raw, err := toRaw(v)
+		if err != nil {
+			return nil, err
+		}
+		fields[k] = raw
 	}
-	return json.Marshal(map[string]any{"fields": fields})
+	return marshalFieldsWrapper(fields)
 }
 
 // TransitionIssueRequest is the payload used to transition an issue.
@@ -385,29 +509,50 @@ type LinkedIssue struct {
 }
 
 // CreateChildIssueRequest is the payload for creating a child issue.
+// See CreateIssueRequest for the polymorphic Description contract.
 type CreateChildIssueRequest struct {
 	ParentKey   string
 	ProjectKey  string
 	IssueType   string
 	Summary     string
-	Description string
+	Description json.RawMessage
 	Fields      map[string]any
 }
 
+// MarshalJSON encodes the child-issue request into the shape Jira expects.
+// See CreateIssueRequest.MarshalJSON for the map[string]json.RawMessage rationale.
 func (r CreateChildIssueRequest) MarshalJSON() ([]byte, error) {
-	fields := map[string]any{
-		"project":   map[string]any{"key": r.ProjectKey},
-		"issuetype": map[string]any{"name": r.IssueType},
-		"summary":   r.Summary,
-		"parent":    map[string]any{"key": r.ParentKey},
+	fields := map[string]json.RawMessage{}
+	for _, kv := range []struct {
+		key string
+		val any
+	}{
+		{"project", map[string]any{"key": r.ProjectKey}},
+		{"issuetype", map[string]any{"name": r.IssueType}},
+		{"summary", r.Summary},
+		{"parent", map[string]any{"key": r.ParentKey}},
+	} {
+		raw, err := toRaw(kv.val)
+		if err != nil {
+			return nil, err
+		}
+		fields[kv.key] = raw
 	}
-	if r.Description != "" {
-		fields["description"] = plainTextToADF(r.Description)
+	desc, ok, err := resolveDescription(r.Description, r.Fields)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		fields["description"] = desc
 	}
 	for k, v := range r.Fields {
-		fields[k] = v
+		raw, err := toRaw(v)
+		if err != nil {
+			return nil, err
+		}
+		fields[k] = raw
 	}
-	return json.Marshal(map[string]any{"fields": fields})
+	return marshalFieldsWrapper(fields)
 }
 
 // parseIssueLinks extracts linked issues from raw issue fields.

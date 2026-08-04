@@ -30,12 +30,22 @@ func (s *Server) handleCreateChildIssue(ctx context.Context, request mcp.CallToo
 		return nil, err
 	}
 
+	description, descPresent, err := parseDescription(args, "description")
+	if err != nil {
+		return resultError(err.Error()), nil
+	}
+	if descPresent && fields != nil {
+		if _, has := fields["description"]; has {
+			return resultError("description provided in both top-level argument and fields: choose one"), nil
+		}
+	}
+
 	req := jira.CreateChildIssueRequest{
 		ParentKey:   parentKey,
 		ProjectKey:  projectKey,
 		IssueType:   issueType,
 		Summary:     summary,
-		Description: optionalString(args, "description"),
+		Description: description,
 		Fields:      fields,
 	}
 	issue, err := s.client.CreateChildIssue(ctx, parentKey, &req)

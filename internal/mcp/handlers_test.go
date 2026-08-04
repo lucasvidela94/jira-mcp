@@ -283,6 +283,208 @@ func TestHandleUpdateIssue(t *testing.T) {
 	}
 }
 
+func TestHandleUpdateIssue_DescriptionObject(t *testing.T) {
+	adf := map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{
+			map[string]any{"type": "heading", "attrs": map[string]any{"level": 2},
+				"content": []any{map[string]any{"type": "text", "text": "Title"}}},
+		},
+	}
+	client := &fakeJiraClient{
+		updateIssueFn: func(ctx context.Context, key string, req *jira.UpdateIssueRequest) error {
+			// Description should carry a well-formed ADF doc (handler layer
+			// re-encodes through map[string]any; byte-equality is only
+			// preserved at the model layer when given raw bytes).
+			var got map[string]any
+			if err := json.Unmarshal(req.Description, &got); err != nil {
+				t.Fatalf("description not valid JSON object: %v (%s)", err, req.Description)
+			}
+			if got["type"] != "doc" || got["version"] != float64(1) {
+				t.Errorf("expected ADF doc shape, got %v", got)
+			}
+			// Wire output: fields.description must be a JSON object (not a
+			// wrapped plain-text ADF paragraph).
+			data, err := json.Marshal(req)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			var wire map[string]any
+			if err := json.Unmarshal(data, &wire); err != nil {
+				t.Fatalf("unmarshal wire: %v", err)
+			}
+			fields := wire["fields"].(map[string]any)
+			desc := fields["description"].(map[string]any)
+			if desc["type"] != "doc" {
+				t.Errorf("expected description.type=doc, got %v", desc["type"])
+			}
+			if _, isMap := fields["description"].(map[string]any); !isMap {
+				t.Errorf("expected description to be an object, got %T", fields["description"])
+			}
+			return nil
+		},
+	}
+	srv := NewServer(client, nil)
+
+	_, err := srv.handleUpdateIssue(context.Background(), newRequest("jira_update_issue", map[string]any{
+		"issue_key":   "PROJ-1",
+		"description": adf,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleUpdateIssue_DescriptionString_StillWorks(t *testing.T) {
+	client := &fakeJiraClient{
+		updateIssueFn: func(ctx context.Context, key string, req *jira.UpdateIssueRequest) error {
+			if string(req.Description) != `"hello"` {
+				t.Errorf("unexpected description: %s", req.Description)
+			}
+			return nil
+		},
+	}
+	srv := NewServer(client, nil)
+
+	_, err := srv.handleUpdateIssue(context.Background(), newRequest("jira_update_issue", map[string]any{
+		"issue_key":   "PROJ-1",
+		"description": "hello",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleUpdateIssue_DescriptionBothSet_RejectsInvalidInput(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client, nil)
+
+	result, err := srv.handleUpdateIssue(context.Background(), newRequest("jira_update_issue", map[string]any{
+		"issue_key":   "PROJ-1",
+		"description": "top",
+		"fields": map[string]any{
+			"description": map[string]any{"type": "doc", "version": 1, "content": []any{}},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("unexpected handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result for both-set description")
+	}
+}
+
+func TestHandleCreateIssue_DescriptionObject(t *testing.T) {
+	adf := map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{
+			map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "hi"}}},
+		},
+	}
+	client := &fakeJiraClient{
+		createIssueFn: func(ctx context.Context, req *jira.CreateIssueRequest) (*jira.Issue, error) {
+			var got map[string]any
+			if err := json.Unmarshal(req.Description, &got); err != nil {
+				t.Fatalf("description not valid JSON object: %v (%s)", err, req.Description)
+			}
+			if got["type"] != "doc" || got["version"] != float64(1) {
+				t.Errorf("expected ADF doc shape, got %v", got)
+			}
+			return &jira.Issue{Key: "PROJ-2", ID: "10002"}, nil
+		},
+	}
+	srv := NewServer(client, nil)
+
+	_, err := srv.handleCreateIssue(context.Background(), newRequest("jira_create_issue", map[string]any{
+		"project_key": "PROJ",
+		"issue_type":  "Task",
+		"summary":     "S",
+		"description": adf,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleCreateIssue_DescriptionBothSet_RejectsInvalidInput(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client, nil)
+
+	result, err := srv.handleCreateIssue(context.Background(), newRequest("jira_create_issue", map[string]any{
+		"project_key": "PROJ",
+		"issue_type":  "Task",
+		"summary":     "S",
+		"description": "top",
+		"fields": map[string]any{
+			"description": map[string]any{"type": "doc", "version": 1, "content": []any{}},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("unexpected handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result for both-set description")
+	}
+}
+
+func TestHandleCreateChildIssue_DescriptionObject(t *testing.T) {
+	adf := map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{
+			map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "child"}}},
+		},
+	}
+	client := &fakeJiraClient{
+		createChildIssueFn: func(ctx context.Context, parentKey string, req *jira.CreateChildIssueRequest) (*jira.Issue, error) {
+			var got map[string]any
+			if err := json.Unmarshal(req.Description, &got); err != nil {
+				t.Fatalf("description not valid JSON object: %v (%s)", err, req.Description)
+			}
+			if got["type"] != "doc" || got["version"] != float64(1) {
+				t.Errorf("expected ADF doc shape, got %v", got)
+			}
+			return &jira.Issue{Key: "PROJ-3", ID: "10003"}, nil
+		},
+	}
+	srv := NewServer(client, nil)
+
+	_, err := srv.handleCreateChildIssue(context.Background(), newRequest("jira_create_child_issue", map[string]any{
+		"parent_key":  "PROJ-1",
+		"project_key": "PROJ",
+		"issue_type":  "Sub-task",
+		"summary":     "child",
+		"description": adf,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleCreateChildIssue_DescriptionBothSet_RejectsInvalidInput(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client, nil)
+
+	result, err := srv.handleCreateChildIssue(context.Background(), newRequest("jira_create_child_issue", map[string]any{
+		"parent_key":  "PROJ-1",
+		"project_key": "PROJ",
+		"issue_type":  "Sub-task",
+		"summary":     "child",
+		"description": "top",
+		"fields": map[string]any{
+			"description": map[string]any{"type": "doc", "version": 1, "content": []any{}},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("unexpected handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result for both-set description")
+	}
+}
+
 func TestHandleTransitionIssue(t *testing.T) {
 	client := &fakeJiraClient{
 		transitionIssueFn: func(ctx context.Context, key string, req *jira.TransitionIssueRequest) error {
@@ -783,6 +985,103 @@ func TestHandleListStatuses(t *testing.T) {
 	text := result.Content[0].(mcp.TextContent).Text
 	if !contains(text, "\"statuses\"") || !contains(text, "Done") {
 		t.Errorf("expected statuses data, got %s", text)
+	}
+}
+
+func TestParseDescription_String(t *testing.T) {
+	raw, present, err := parseDescription(map[string]any{"description": "hello"}, "description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !present {
+		t.Fatal("expected present=true")
+	}
+	// String path returns a JSON-encoded string (raw is the quoted form).
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatalf("expected JSON string, got %q: %v", raw, err)
+	}
+	if s != "hello" {
+		t.Errorf("expected hello, got %q", s)
+	}
+}
+
+func TestParseDescription_Object(t *testing.T) {
+	adf := map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{},
+	}
+	raw, present, err := parseDescription(map[string]any{"description": adf}, "description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !present {
+		t.Fatal("expected present=true")
+	}
+	// Object path returns the raw object bytes unchanged.
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("expected JSON object, got %q: %v", raw, err)
+	}
+	if got["type"] != "doc" || got["version"] != float64(1) {
+		t.Errorf("expected ADF doc, got %v", got)
+	}
+}
+
+func TestParseDescription_Missing(t *testing.T) {
+	raw, present, err := parseDescription(map[string]any{}, "description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if present {
+		t.Error("expected present=false when key missing")
+	}
+	if raw != nil {
+		t.Errorf("expected nil raw when missing, got %q", raw)
+	}
+}
+
+func TestParseDescription_BadADF_MissingType(t *testing.T) {
+	_, _, err := parseDescription(map[string]any{
+		"description": map[string]any{"version": 1, "content": []any{}},
+	}, "description")
+	if err == nil {
+		t.Fatal("expected error for ADF object missing type")
+	}
+}
+
+func TestParseDescription_BadADF_WrongVersion(t *testing.T) {
+	_, _, err := parseDescription(map[string]any{
+		"description": map[string]any{"type": "doc", "version": 2, "content": []any{}},
+	}, "description")
+	if err == nil {
+		t.Fatal("expected error for ADF object with wrong version")
+	}
+}
+
+func TestParseDescription_BadADF_ContentNotArray(t *testing.T) {
+	_, _, err := parseDescription(map[string]any{
+		"description": map[string]any{"type": "doc", "version": 1, "content": "not-an-array"},
+	}, "description")
+	if err == nil {
+		t.Fatal("expected error when content is not an array")
+	}
+}
+
+func TestParseDescription_BadADF_WrongTopType(t *testing.T) {
+	_, _, err := parseDescription(map[string]any{
+		"description": map[string]any{"type": "paragraph", "version": 1, "content": []any{}},
+	}, "description")
+	if err == nil {
+		t.Fatal("expected error when top-level type is not 'doc'")
+	}
+}
+
+func TestParseDescription_WrongShape_Number(t *testing.T) {
+	_, _, err := parseDescription(map[string]any{"description": 42}, "description")
+	if err == nil {
+		t.Fatal("expected error when description is a number")
 	}
 }
 

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -43,6 +44,32 @@ func optionalObject(args map[string]any, name string) (map[string]any, error) {
 		return nil, fmt.Errorf("parameter %s must be an object", name)
 	}
 	return obj, nil
+}
+
+// optionalRaw returns a polymorphic argument as json.RawMessage without
+// decoding it. The caller is responsible for validating the shape. Returns
+// (nil, false, nil) if the key is absent.
+func optionalRaw(args map[string]any, name string) (json.RawMessage, bool, error) {
+	v, ok := args[name]
+	if !ok {
+		return nil, false, nil
+	}
+	switch val := v.(type) {
+	case string:
+		encoded, err := json.Marshal(val)
+		if err != nil {
+			return nil, true, fmt.Errorf("parameter %s: %w", name, err)
+		}
+		return encoded, true, nil
+	case map[string]any:
+		encoded, err := json.Marshal(val)
+		if err != nil {
+			return nil, true, fmt.Errorf("parameter %s: %w", name, err)
+		}
+		return encoded, true, nil
+	default:
+		return nil, true, fmt.Errorf("parameter %s must be a string or object", name)
+	}
 }
 
 // optionalInt extracts an optional integer argument.
