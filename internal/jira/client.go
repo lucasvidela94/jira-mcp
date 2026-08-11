@@ -3,7 +3,6 @@ package jira
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,14 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lucasvidela94/jira-mcp/internal/auth"
 	"github.com/lucasvidela94/jira-mcp/internal/config"
 )
 
 // Client is a thin, stateless Jira Cloud REST API client.
 type Client struct {
-	baseURL string
-	client  *http.Client
-	auth    string
+	provider auth.AuthProvider
+	client   *http.Client
 }
 
 // Option customizes a client request.
@@ -69,24 +68,28 @@ func WithNextPageToken(token string) Option {
 	}
 }
 
-// New creates a Jira client from configuration.
+// New creates a Jira client from an AuthProvider.
 // If httpClient is nil, a default client with a 30s timeout is used.
-func New(cfg config.Config, httpClient *http.Client) *Client {
+func New(provider auth.AuthProvider, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
-	baseURL := strings.TrimRight(cfg.URL, "/")
-	auth := base64.StdEncoding.EncodeToString([]byte(cfg.Username + ":" + cfg.APIToken))
 	return &Client{
-		baseURL: baseURL,
-		client:  httpClient,
-		auth:    "Basic " + auth,
+		provider: provider,
+		client:   httpClient,
 	}
+}
+
+// NewFromConfig creates a Jira client from legacy Config, using Basic Auth.
+// This is a backward-compatibility constructor; prefer New() directly.
+func NewFromConfig(cfg config.Config, httpClient *http.Client) *Client {
+	provider := auth.NewBasicProvider(cfg.URL, cfg.Username, cfg.APIToken)
+	return New(provider, httpClient)
 }
 
 // do performs an HTTP request against the Jira API.
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body any) (*http.Response, error) {
-	u, err := url.Parse(c.baseURL + path)
+	u, err := url.Parse(c.provider.BaseURL() + path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid jira URL: %w", err)
 	}
@@ -107,7 +110,9 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("Authorization", c.auth)
+	if err := c.provider.Authorize(req); err != nil {
+		return nil, fmt.Errorf("authorize request: %w", err)
+	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 

@@ -1,8 +1,11 @@
 module github.com/lucasvidela94/jira-mcp
 
-go 1.24.0
+go 1.25.0
 
-require github.com/mark3labs/mcp-go v0.44.0
+require (
+	github.com/mark3labs/mcp-go v0.44.0
+	golang.org/x/oauth2 v0.36.0
+)
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

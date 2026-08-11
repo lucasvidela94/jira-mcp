@@ -20,7 +20,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w -X main.version={{.Version}} -X main.ClientID={{.Env.JIRA_OAUTH_CLIENT_ID}} -X main.ClientSecret={{.Env.JIRA_OAUTH_CLIENT_SECRET}}
 
 archives:
   - formats: [tar.gz]

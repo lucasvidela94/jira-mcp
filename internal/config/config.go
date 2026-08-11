@@ -6,16 +6,18 @@ import (
 	"strings"
 )
 
-// Config holds Jira Cloud credentials sourced from environment variables.
+// Config holds Jira Cloud configuration sourced from environment variables.
 type Config struct {
 	URL          string   // JIRA_URL
 	Username     string   // JIRA_USERNAME
 	APIToken     string   // JIRA_API_TOKEN
+	AuthMode     string   // "basic" when JIRA_API_TOKEN is set, "oauth" otherwise
 	EnabledTools []string // ENABLED_TOOLS (comma-separated allowlist)
 }
 
 // Load reads Jira configuration from environment variables.
-// It returns an error naming the first missing required variable.
+// If JIRA_API_TOKEN is set, all three credentials are required (Basic mode).
+// Otherwise, it returns without error for OAuth mode (token from disk).
 func Load() (Config, error) {
 	cfg := Config{
 		URL:      os.Getenv("JIRA_URL"),
@@ -23,17 +25,22 @@ func Load() (Config, error) {
 		APIToken: os.Getenv("JIRA_API_TOKEN"),
 	}
 
-	for _, field := range []struct {
-		name  string
-		value string
-	}{
-		{"JIRA_URL", cfg.URL},
-		{"JIRA_USERNAME", cfg.Username},
-		{"JIRA_API_TOKEN", cfg.APIToken},
-	} {
-		if field.value == "" {
-			return Config{}, fmt.Errorf("missing required environment variable: %s", field.name)
+	if cfg.APIToken != "" {
+		cfg.AuthMode = "basic"
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{"JIRA_URL", cfg.URL},
+			{"JIRA_USERNAME", cfg.Username},
+			{"JIRA_API_TOKEN", cfg.APIToken},
+		} {
+			if field.value == "" {
+				return Config{}, fmt.Errorf("missing required environment variable: %s", field.name)
+			}
 		}
+	} else {
+		cfg.AuthMode = "oauth"
 	}
 
 	if raw := os.Getenv("ENABLED_TOOLS"); raw != "" {

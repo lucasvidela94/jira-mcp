@@ -9,18 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lucasvidela94/jira-mcp/internal/config"
+	"github.com/lucasvidela94/jira-mcp/internal/auth"
 )
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
 	t.Helper()
 	server := httptest.NewServer(handler)
-	cfg := config.Config{
-		URL:      server.URL,
-		Username: "user@example.com",
-		APIToken: "secret-token",
-	}
-	return New(cfg, server.Client()), server
+	provider := auth.NewBasicProvider(server.URL, "user@example.com", "secret-token")
+	return New(provider, server.Client()), server
 }
 
 func TestNew_SetsAuthHeader(t *testing.T) {
@@ -112,12 +108,8 @@ func TestClient_do_MapsError(t *testing.T) {
 }
 
 func TestClient_do_NetworkError(t *testing.T) {
-	cfg := config.Config{
-		URL:      "http://invalid.localhost.test",
-		Username: "user",
-		APIToken: "token",
-	}
-	client := New(cfg, &http.Client{Timeout: 0})
+	provider := auth.NewBasicProvider("http://invalid.localhost.test", "user", "token")
+	client := New(provider, &http.Client{Timeout: 0})
 
 	_, err := client.Search(context.Background(), "project = PROJ")
 	if err == nil {
@@ -464,12 +456,8 @@ func TestClient_baseURLWithTrailingSlash(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := config.Config{
-		URL:      server.URL + "/",
-		Username: "user",
-		APIToken: "token",
-	}
-	client := New(cfg, server.Client())
+	provider := auth.NewBasicProvider(server.URL+"/", "user", "token")
+	client := New(provider, server.Client())
 
 	_, err := client.GetIssue(context.Background(), "PROJ-1")
 	if err != nil {
@@ -484,12 +472,8 @@ func TestClient_baseURLWithPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := config.Config{
-		URL:      server.URL + "/jira",
-		Username: "user",
-		APIToken: "token",
-	}
-	client := New(cfg, server.Client())
+	provider := auth.NewBasicProvider(server.URL+"/jira", "user", "token")
+	client := New(provider, server.Client())
 
 	_, err := client.GetIssue(context.Background(), "PROJ-1")
 	if err != nil {
@@ -517,12 +501,8 @@ func TestClient_DoesNotLeakToken(t *testing.T) {
 }
 
 func TestClient_InvalidBaseURL(t *testing.T) {
-	cfg := config.Config{
-		URL:      "://invalid-url",
-		Username: "user",
-		APIToken: "token",
-	}
-	client := New(cfg, http.DefaultClient)
+	provider := auth.NewBasicProvider("://invalid-url", "user", "token")
+	client := New(provider, http.DefaultClient)
 
 	_, err := client.GetIssue(context.Background(), "PROJ-1")
 	if err == nil {

@@ -23,19 +23,34 @@ func TestLoad_ValidConfig(t *testing.T) {
 	if cfg.APIToken != "secret-token" {
 		t.Errorf("expected APIToken secret-token, got %q", cfg.APIToken)
 	}
+	if cfg.AuthMode != "basic" {
+		t.Errorf("expected AuthMode basic, got %q", cfg.AuthMode)
+	}
 }
 
-func TestLoad_MissingVariable(t *testing.T) {
-	// Ensure all three are unset initially.
+func TestLoad_OAuthMode_NoEnvVars(t *testing.T) {
 	unsetenv(t, "JIRA_URL")
 	unsetenv(t, "JIRA_USERNAME")
 	unsetenv(t, "JIRA_API_TOKEN")
 
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error in OAuth mode, got %v", err)
+	}
+	if cfg.AuthMode != "oauth" {
+		t.Errorf("expected AuthMode oauth, got %q", cfg.AuthMode)
+	}
+}
+
+func TestLoad_BasicMode_MissingRequired(t *testing.T) {
+	setenv(t, "JIRA_API_TOKEN", "some-token")
+	unsetenv(t, "JIRA_URL")
+	unsetenv(t, "JIRA_USERNAME")
+
 	_, err := Load()
 	if err == nil {
-		t.Fatal("expected error for missing env vars")
+		t.Fatal("expected error when JIRA_API_TOKEN is set but JIRA_URL is missing")
 	}
-	// The error must name the missing variable without exposing any value.
 	if err.Error() != "missing required environment variable: JIRA_URL" {
 		t.Errorf("unexpected error message: %v", err)
 	}
@@ -46,12 +61,12 @@ func TestLoad_MissingToken(t *testing.T) {
 	setenv(t, "JIRA_USERNAME", "user@example.com")
 	unsetenv(t, "JIRA_API_TOKEN")
 
-	_, err := Load()
-	if err == nil {
-		t.Fatal("expected error for missing token")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error when token is missing (OAuth mode), got %v", err)
 	}
-	if err.Error() != "missing required environment variable: JIRA_API_TOKEN" {
-		t.Errorf("unexpected error message: %v", err)
+	if cfg.AuthMode != "oauth" {
+		t.Errorf("expected AuthMode oauth, got %q", cfg.AuthMode)
 	}
 }
 
