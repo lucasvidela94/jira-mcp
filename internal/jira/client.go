@@ -130,7 +130,7 @@ func decodeError(resp *http.Response) error {
 	if err := json.NewDecoder(resp.Body).Decode(&jerr); err != nil {
 		return MapHTTPError(resp.StatusCode, nil, resp.Header.Get("Retry-After"))
 	}
-	return MapHTTPError(resp.StatusCode, jerr.ErrorMessages, resp.Header.Get("Retry-After"))
+	return MapHTTPError(resp.StatusCode, jerr.messages(), resp.Header.Get("Retry-After"))
 }
 
 // doWithRetry executes idempotent read requests with one retry on retryable statuses.

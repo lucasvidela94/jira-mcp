@@ -13,6 +13,7 @@ type Config struct {
 	APIToken     string   // JIRA_API_TOKEN
 	AuthMode     string   // "basic" when JIRA_API_TOKEN is set, "oauth" otherwise
 	EnabledTools []string // ENABLED_TOOLS (comma-separated allowlist)
+	ConfirmWrite bool     // JIRA_MCP_CONFIRM (whether destructive write tools require confirmation; default on)
 }
 
 // Load reads Jira configuration from environment variables.
@@ -20,9 +21,15 @@ type Config struct {
 // Otherwise, it returns without error for OAuth mode (token from disk).
 func Load() (Config, error) {
 	cfg := Config{
-		URL:      os.Getenv("JIRA_URL"),
-		Username: os.Getenv("JIRA_USERNAME"),
-		APIToken: os.Getenv("JIRA_API_TOKEN"),
+		URL:          os.Getenv("JIRA_URL"),
+		Username:     os.Getenv("JIRA_USERNAME"),
+		APIToken:     os.Getenv("JIRA_API_TOKEN"),
+		ConfirmWrite: true,
+	}
+
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("JIRA_MCP_CONFIRM"))) {
+	case "off", "false", "0", "no":
+		cfg.ConfirmWrite = false
 	}
 
 	if cfg.APIToken != "" {

@@ -249,6 +249,13 @@ Only `JIRA_URL` is required. Run `jira-mcp auth` once to complete the login flow
 |---|---|---|
 | `JIRA_URL` | Your Jira Cloud base URL | `https://yourcompany.atlassian.net` |
 | `ENABLED_TOOLS` | Optional comma-separated tool allowlist | `jira_search,jira_get_issue,jira_list_projects` |
+| `JIRA_MCP_CONFIRM` | Confirmation guardrail for destructive tools (`on` by default) | `off` |
+
+### Confirmation guardrail
+
+Destructive write tools — `jira_create_issue`, `jira_create_child_issue`, and `jira_delete_issue` — require explicit user confirmation before they run. The server prompts the MCP client for confirmation and, if the client does not support elicitation, the tool fails closed (refuses to run) rather than executing without consent.
+
+- Default is **on**. Set `JIRA_MCP_CONFIRM=off` (or `false`, `0`, `no`) to disable the guardrail.
 
 ### Basic Auth Mode
 
@@ -431,6 +438,29 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
 | `jira_create_issue_link` | Link two issues |
 | `jira_get_related_issues` | Get issues linked to an issue |
 | `jira_create_child_issue` | Create a sub-task or child issue |
+
+### Description formatting and custom fields
+
+The `jira_create_issue`, `jira_update_issue`, and `jira_create_child_issue` tools accept a `description` that is either a plain string or a pre-built ADF document object.
+
+A plain string is converted to Atlassian Document Format (ADF) with the following rules:
+
+- Each line becomes a paragraph; blank lines are ignored.
+- `#`, `##`, and `###` at the start of a line produce level-1/2/3 headings.
+- `- item` or `* item` produce a bullet list (consecutive items are grouped).
+- `- [ ] item` or `- [x] item` produce a checkbox list (`[x]` marks the item done).
+- `**text**` renders bold inline text.
+
+A pre-built ADF object (e.g. `{"type":"doc","version":1,"content":[...]}`) is embedded verbatim.
+
+The optional `fields` object accepts custom Jira fields, for example:
+
+- `parent`: `{"key":"PROJ-1"}`
+- `labels`: `["tag"]`
+
+Set the assignee with the separate `jira_assign_issue` tool, or via `fields` as `{"assignee":{"accountId":"..."}}`.
+
+> **Note:** `jira_create_issue` returns only `{id, key, self}` (fields are `null`). Use `jira_get_issue` to verify the resulting `parent`, `labels`, and `assignee`.
 
 ## HTTP/SSE Transport
 

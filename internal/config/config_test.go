@@ -70,6 +70,58 @@ func TestLoad_MissingToken(t *testing.T) {
 	}
 }
 
+func TestLoad_ConfirmWriteDefault(t *testing.T) {
+	unsetenv(t, "JIRA_MCP_CONFIRM")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !cfg.ConfirmWrite {
+		t.Error("expected ConfirmWrite to default to true")
+	}
+}
+
+func TestLoad_ConfirmWriteOff(t *testing.T) {
+	setenv(t, "JIRA_MCP_CONFIRM", "off")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.ConfirmWrite {
+		t.Error("expected ConfirmWrite false for JIRA_MCP_CONFIRM=off")
+	}
+}
+
+func TestLoad_ConfirmWriteCaseInsensitive(t *testing.T) {
+	for _, value := range []string{"OFF", "False"} {
+		t.Run(value, func(t *testing.T) {
+			setenv(t, "JIRA_MCP_CONFIRM", value)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if cfg.ConfirmWrite {
+				t.Errorf("expected ConfirmWrite false for JIRA_MCP_CONFIRM=%s", value)
+			}
+		})
+	}
+}
+
+func TestLoad_ConfirmWriteInvalidStaysOn(t *testing.T) {
+	setenv(t, "JIRA_MCP_CONFIRM", "banana")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !cfg.ConfirmWrite {
+		t.Error("expected ConfirmWrite true for invalid JIRA_MCP_CONFIRM value")
+	}
+}
+
 func setenv(t *testing.T, key, value string) {
 	t.Helper()
 	os.Setenv(key, value)

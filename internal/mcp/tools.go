@@ -49,7 +49,7 @@ const createIssueToolSchema = `{
         }
       ]
     },
-    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."}
   },
   "required": ["project_key", "issue_type", "summary"]
 }`
@@ -75,7 +75,7 @@ const updateIssueToolSchema = `{
         }
       ]
     },
-    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."}
   },
   "required": ["issue_key"]
 }`
@@ -83,7 +83,7 @@ const updateIssueToolSchema = `{
 func createIssueTool() mcp.Tool {
 	return mcp.NewToolWithRawSchema(
 		"jira_create_issue",
-		"Create a new Jira issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text: headings, bullets, links, etc.).",
+		"Create a new Jira issue. The description string is converted to ADF: paragraph breaks per line, #/##/### headings, - or * bullets, - [ ]/- [x] checkboxes, and **bold**; a pre-built ADF object is embedded verbatim. The optional fields object supports shapes like parent={\"key\":\"PROJ-1\"} and labels=[\"tag\"]; set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}.",
 		json.RawMessage(createIssueToolSchema),
 	)
 }
@@ -91,7 +91,7 @@ func createIssueTool() mcp.Tool {
 func updateIssueTool() mcp.Tool {
 	return mcp.NewToolWithRawSchema(
 		"jira_update_issue",
-		"Update an existing Jira issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text: headings, bullets, links, etc.).",
+		"Update an existing Jira issue. The description string is converted to ADF: paragraph breaks per line, #/##/### headings, - or * bullets, - [ ]/- [x] checkboxes, and **bold**; a pre-built ADF object is embedded verbatim. The optional fields object supports shapes like parent={\"key\":\"PROJ-1\"} and labels=[\"tag\"]; set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}.",
 		json.RawMessage(updateIssueToolSchema),
 	)
 }
@@ -255,7 +255,7 @@ const createChildIssueToolSchema = `{
         }
       ]
     },
-    "fields": {"type": "object", "description": "Optional additional fields as a JSON object"}
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."}
   },
   "required": ["parent_key", "project_key", "issue_type", "summary"]
 }`
@@ -263,7 +263,7 @@ const createChildIssueToolSchema = `{
 func createChildIssueTool() mcp.Tool {
 	return mcp.NewToolWithRawSchema(
 		"jira_create_child_issue",
-		"Create a sub-task or child issue under a parent issue. The description parameter accepts a plain string (auto-wrapped as ADF) or a pre-built ADF doc object (rich text).",
+		"Create a sub-task or child issue under a parent issue. The description string is converted to ADF: paragraph breaks per line, #/##/### headings, - or * bullets, - [ ]/- [x] checkboxes, and **bold**; a pre-built ADF object is embedded verbatim. The optional fields object supports shapes like parent={\"key\":\"PROJ-1\"} and labels=[\"tag\"]; set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}.",
 		json.RawMessage(createChildIssueToolSchema),
 	)
 }

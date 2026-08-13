@@ -103,7 +103,7 @@ func main() {
 	}
 
 	client := jira.New(provider, nil)
-	server := mcp.NewServer(client, cfg.EnabledTools)
+	server := mcp.NewServer(client, cfg.EnabledTools, mcp.WithConfirmation(cfg.ConfirmWrite))
 
 	if err := dispatchTransport(server, *transport, *port); err != nil {
 		log.Fatalf("server error: %s", err)

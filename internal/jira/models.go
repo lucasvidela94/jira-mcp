@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
+	"strings"
 )
 
 // Issue represents a Jira issue returned by the REST API.
@@ -57,26 +59,127 @@ type TransitionsResponse struct {
 	Transitions []Transition `json:"transitions"`
 }
 
-// plainTextToADF wraps a plain string in Atlassian Document Format so that Jira
-// accepts it as a description. Reuses the same the same ADF structure for every
-// call — one doc node, one paragraph, one text node.
+// plainTextToADF converts a plain string into an Atlassian Document Format
+// doc node. It splits the input into lines and maps each line to a block node:
+// `# `/`## `/`### ` headings, `- [ ]`/`- [x]` task items, `- `/`* ` bullet
+// items, or a plain paragraph. Consecutive lines of the same list type are
+// grouped into a single list node. Empty lines are skipped.
 func plainTextToADF(text string) map[string]any {
+	lines := strings.Split(text, "\n")
+
+	content := make([]any, 0, len(lines))
+	taskCounter := 0
+
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSuffix(lines[i], "\r")
+
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		if m := headingRe.FindStringSubmatch(line); m != nil {
+			content = append(content, map[string]any{
+				"type":    "heading",
+				"attrs":   map[string]any{"level": len(m[1])},
+				"content": inlineContent(m[2]),
+			})
+			continue
+		}
+
+		if m := taskItemRe.FindStringSubmatch(line); m != nil {
+			var items []any
+			for i < len(lines) {
+				tm := taskItemRe.FindStringSubmatch(strings.TrimSuffix(lines[i], "\r"))
+				if tm == nil {
+					break
+				}
+				state := "TODO"
+				if tm[1] == "x" || tm[1] == "X" {
+					state = "DONE"
+				}
+				taskCounter++
+				items = append(items, map[string]any{
+					"type": "taskItem",
+					"attrs": map[string]any{
+						"localId": fmt.Sprintf("task-%d", taskCounter),
+						"state":   state,
+					},
+					"content": inlineContent(tm[2]),
+				})
+				i++
+			}
+			i--
+			content = append(content, map[string]any{
+				"type":    "taskList",
+				"content": items,
+			})
+			continue
+		}
+
+		if m := bulletRe.FindStringSubmatch(line); m != nil {
+			var items []any
+			for i < len(lines) {
+				bm := bulletRe.FindStringSubmatch(strings.TrimSuffix(lines[i], "\r"))
+				if bm == nil {
+					break
+				}
+				items = append(items, map[string]any{
+					"type": "listItem",
+					"content": []any{
+						map[string]any{
+							"type":    "paragraph",
+							"content": inlineContent(bm[1]),
+						},
+					},
+				})
+				i++
+			}
+			i--
+			content = append(content, map[string]any{
+				"type":    "bulletList",
+				"content": items,
+			})
+			continue
+		}
+
+		content = append(content, map[string]any{
+			"type":    "paragraph",
+			"content": inlineContent(line),
+		})
+	}
+
 	return map[string]any{
 		"type":    "doc",
 		"version": 1,
-		"content": []any{
-			map[string]any{
-				"type": "paragraph",
-				"content": []any{
-					map[string]any{
-						"type": "text",
-						"text": text,
-					},
-				},
-			},
-		},
+		"content": content,
 	}
 }
+
+// inlineContent converts a single line of text into ADF inline `text` nodes.
+// Segments delimited by `**` are marked strong; a string with no `**` markers
+// yields a single plain text node. An unbalanced number of `**` markers (an
+// even number of split segments) falls back to a single unmarked text node.
+func inlineContent(s string) []any {
+	segments := strings.Split(s, "**")
+	if len(segments) == 1 || len(segments)%2 == 0 {
+		return []any{map[string]any{"type": "text", "text": s}}
+	}
+	nodes := make([]any, 0, len(segments))
+	for i, seg := range segments {
+		node := map[string]any{"type": "text", "text": seg}
+		if i%2 == 1 {
+			node["marks"] = []any{map[string]any{"type": "strong"}}
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+var (
+	headingRe  = regexp.MustCompile(`^(#{1,3})\s+(.*)$`)
+	taskItemRe = regexp.MustCompile(`^[-*]\s+\[([ xX])\]\s+(.*)$`)
+	bulletRe   = regexp.MustCompile(`^[-*]\s+(.*)$`)
+)
 
 // resolveDescription turns the polymorphic Description into a value that
 // belongs inside fields.description, or returns ok=false when nothing should be
@@ -614,6 +717,27 @@ func parseDevelopmentInfo(fields json.RawMessage) (*DevelopmentInformation, erro
 
 // jiraErrorResponse is the shape of Jira error payloads.
 type jiraErrorResponse struct {
-	ErrorMessages   []string `json:"errorMessages"`
-	WarningMessages []string `json:"warningMessages"`
+	ErrorMessages   []string          `json:"errorMessages"`
+	WarningMessages []string          `json:"warningMessages"`
+	Errors          map[string]string `json:"errors"`
+}
+
+// messages flattens the error payload into a deterministic list of messages:
+// top-level errorMessages first, then each field-level error formatted as
+// "<key>: <value>" with keys sorted alphabetically.
+func (e jiraErrorResponse) messages() []string {
+	out := make([]string, 0, len(e.ErrorMessages)+len(e.Errors))
+	out = append(out, e.ErrorMessages...)
+	if len(e.Errors) == 0 {
+		return out
+	}
+	keys := make([]string, 0, len(e.Errors))
+	for k := range e.Errors {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%s: %s", k, e.Errors[k]))
+	}
+	return out
 }
