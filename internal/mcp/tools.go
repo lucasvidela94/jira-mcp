@@ -132,11 +132,37 @@ func getTransitionsTool() mcp.Tool {
 	)
 }
 
+// addCommentTool uses NewToolWithRawSchema because the `body` argument is
+// polymorphic (string OR pre-built ADF object), the same rationale as the
+// description field on create/update/child tools.
+const addCommentToolSchema = `{
+  "type": "object",
+  "properties": {
+    "issue_key": {"type": "string", "description": "Issue key"},
+    "body": {
+      "oneOf": [
+        {"type": "string", "description": "Comment body (automatically converted to ADF)"},
+        {
+          "type": "object",
+          "required": ["type", "version", "content"],
+          "properties": {
+            "type":    {"type": "string", "enum": ["doc"]},
+            "version": {"type": "number", "enum": [1]},
+            "content": {"type": "array"}
+          },
+          "description": "Pre-built ADF document object (rich text: headings, lists, links, etc.)"
+        }
+      ]
+    }
+  },
+  "required": ["issue_key", "body"]
+}`
+
 func addCommentTool() mcp.Tool {
-	return mcp.NewTool("jira_add_comment",
-		mcp.WithDescription("Add a comment to a Jira issue."),
-		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
-		mcp.WithString("body", mcp.Description("Comment body"), mcp.Required()),
+	return mcp.NewToolWithRawSchema(
+		"jira_add_comment",
+		"Add a comment to a Jira issue. The body string is converted to ADF: paragraph breaks per line, #/##/### headings, - or * bullets, - [ ]/- [x] checkboxes, and **bold**; a pre-built ADF object is embedded verbatim.",
+		json.RawMessage(addCommentToolSchema),
 	)
 }
 

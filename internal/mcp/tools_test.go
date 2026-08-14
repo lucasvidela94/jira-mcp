@@ -102,6 +102,44 @@ func TestCreateIssueTool_ToolDescriptionMentionsADF(t *testing.T) {
 	}
 }
 
+func TestAddCommentTool_BodySchema_OneOf(t *testing.T) {
+	srv := NewServer(&fakeJiraClient{}, nil)
+	tools := srv.mcp.ListTools()
+	tool, ok := tools["jira_add_comment"]
+	if !ok {
+		t.Fatal("missing jira_add_comment tool")
+	}
+	schemaBytes := getInputSchema(t, tool.Tool)
+	var schema map[string]any
+	if err := json.Unmarshal(schemaBytes, &schema); err != nil {
+		t.Fatalf("unmarshal InputSchema: %v", err)
+	}
+	props := schema["properties"].(map[string]any)
+	body := props["body"].(map[string]any)
+	oneOf, ok := body["oneOf"].([]any)
+	if !ok {
+		t.Fatalf("body.oneOf missing: %v", body)
+	}
+	if len(oneOf) != 2 {
+		t.Fatalf("expected 2 oneOf branches, got %d", len(oneOf))
+	}
+	if oneOf[0].(map[string]any)["type"] != "string" {
+		t.Errorf("branch 0 type: got %v", oneOf[0])
+	}
+	if oneOf[1].(map[string]any)["type"] != "object" {
+		t.Errorf("branch 1 type: got %v", oneOf[1])
+	}
+}
+
+func TestAddCommentTool_ToolDescriptionMentionsADF(t *testing.T) {
+	srv := NewServer(&fakeJiraClient{}, nil)
+	tools := srv.mcp.ListTools()
+	tool := tools["jira_add_comment"]
+	if !contains(tool.Tool.Description, "ADF") {
+		t.Errorf("tool description should mention ADF: %q", tool.Tool.Description)
+	}
+}
+
 // getInputSchema returns the wire-shape inputSchema bytes for a tool, working
 // for both typed-builder tools and raw-schema tools.
 func getInputSchema(t *testing.T, tool mcp.Tool) []byte {

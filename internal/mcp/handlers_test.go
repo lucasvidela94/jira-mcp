@@ -581,8 +581,8 @@ func TestHandleGetTransitions(t *testing.T) {
 func TestHandleAddComment(t *testing.T) {
 	client := &fakeJiraClient{
 		addCommentFn: func(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error) {
-			if req.Body != "A comment" {
-				t.Errorf("unexpected body %q", req.Body)
+			if string(req.Body) != `"A comment"` {
+				t.Errorf("unexpected body %q", string(req.Body))
 			}
 			return &jira.CommentResponse{ID: "10010", Self: "https://jira/comment/10010"}, nil
 		},
@@ -609,6 +609,56 @@ func TestHandleAddComment_EmptyBody(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Fatal("expected error result for empty body")
+	}
+}
+
+func TestHandleAddComment_ADFObjectBody(t *testing.T) {
+	adf := map[string]any{
+		"type":    "doc",
+		"version": 1,
+		"content": []any{
+			map[string]any{
+				"type":    "paragraph",
+				"content": []any{map[string]any{"type": "text", "text": "hello"}},
+			},
+		},
+	}
+	want, err := json.Marshal(adf)
+	if err != nil {
+		t.Fatalf("marshal want: %v", err)
+	}
+	var gotBody string
+	client := &fakeJiraClient{
+		addCommentFn: func(ctx context.Context, key string, req *jira.AddCommentRequest) (*jira.CommentResponse, error) {
+			gotBody = string(req.Body)
+			return &jira.CommentResponse{ID: "10011", Self: "https://jira/comment/10011"}, nil
+		},
+	}
+	srv := NewServer(client, nil)
+
+	result, err := srv.handleAddComment(context.Background(), newRequest("jira_add_comment", map[string]any{"issue_key": "PROJ-1", "body": adf}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "10011") {
+		t.Errorf("expected result to contain comment id, got %s", text)
+	}
+	if gotBody != string(want) {
+		t.Errorf("ADF body not byte-equal:\n want: %s\n got:  %s", want, gotBody)
+	}
+}
+
+func TestHandleAddComment_WhitespaceBody(t *testing.T) {
+	client := &fakeJiraClient{}
+	srv := NewServer(client, nil)
+
+	result, err := srv.handleAddComment(context.Background(), newRequest("jira_add_comment", map[string]any{"issue_key": "PROJ-1", "body": "   "}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error result for whitespace body")
 	}
 }
 

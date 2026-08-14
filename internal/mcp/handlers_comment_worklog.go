@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -15,11 +16,11 @@ func (s *Server) handleAddComment(ctx context.Context, request mcp.CallToolReque
 	if err != nil {
 		return nil, err
 	}
-	body, err := requiredString(args, "body")
+	body, bodyPresent, err := parseDescription(args, "body")
 	if err != nil {
-		return nil, err
+		return resultError(err.Error()), nil
 	}
-	if strings.TrimSpace(body) == "" {
+	if !bodyPresent || isBlankBody(body) {
 		return resultError("comment body cannot be empty"), nil
 	}
 
@@ -28,6 +29,22 @@ func (s *Server) handleAddComment(ctx context.Context, request mcp.CallToolReque
 		return handleClientError(err), nil
 	}
 	return resultJSON(comment)
+}
+
+// isBlankBody reports whether a polymorphic comment body is empty or only
+// whitespace. The body arrives as json.RawMessage: a plain string is encoded
+// with quotes, while a pre-built ADF object is never blank.
+func isBlankBody(body json.RawMessage) bool {
+	if len(body) == 0 {
+		return true
+	}
+	if body[0] == '"' {
+		var s string
+		if err := json.Unmarshal(body, &s); err == nil {
+			return strings.TrimSpace(s) == ""
+		}
+	}
+	return false
 }
 
 func (s *Server) handleAddWorklog(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

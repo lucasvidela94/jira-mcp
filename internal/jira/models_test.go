@@ -378,7 +378,7 @@ func TestAssignIssueRequest_Marshal(t *testing.T) {
 }
 
 func TestAddCommentRequest_Marshal(t *testing.T) {
-	req := AddCommentRequest{Body: "A comment"}
+	req := AddCommentRequest{Body: json.RawMessage(`"A comment"`)}
 	data, err := json.Marshal(req)
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
@@ -388,8 +388,30 @@ func TestAddCommentRequest_Marshal(t *testing.T) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if raw["body"] != "A comment" {
-		t.Errorf("expected body, got %v", raw["body"])
+	body, ok := raw["body"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected body to be an ADF object, got %v", raw["body"])
+	}
+	if body["type"] != "doc" || body["version"] != float64(1) {
+		t.Errorf("expected ADF doc body, got %v", body)
+	}
+}
+
+func TestAddCommentRequest_Marshal_ADFObject_EmbedsVerbatim(t *testing.T) {
+	input := json.RawMessage(`{"type":"doc","version":1,"content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Title"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"one"}]}]}]}]}`)
+	req := AddCommentRequest{Body: input}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if string(raw["body"]) != string(input) {
+		t.Errorf("body not byte-equal:\n want: %s\n got:  %s", input, raw["body"])
 	}
 }
 

@@ -6,6 +6,40 @@ import (
 	"testing"
 )
 
+func TestPlainTextToADF_TaskListLocalIDs_Unique(t *testing.T) {
+	got := plainTextToADF("- [ ] a\n\n- [x] b")
+	content := got["content"].([]any)
+	if len(content) != 2 {
+		t.Fatalf("expected 2 task lists, got %d", len(content))
+	}
+	seen := map[string]bool{}
+	for _, block := range content {
+		list := block.(map[string]any)
+		if list["type"] != "taskList" {
+			t.Fatalf("expected taskList, got %v", list["type"])
+		}
+		attrs := list["attrs"].(map[string]any)
+		localID, _ := attrs["localId"].(string)
+		if localID == "" {
+			t.Fatalf("taskList missing localId: %v", list)
+		}
+		if seen[localID] {
+			t.Fatalf("duplicate taskList localId %q", localID)
+		}
+		seen[localID] = true
+		items := list["content"].([]any)
+		itemAttrs := items[0].(map[string]any)["attrs"].(map[string]any)
+		itemID, _ := itemAttrs["localId"].(string)
+		if itemID == "" {
+			t.Fatalf("taskItem missing localId: %v", items[0])
+		}
+		if seen[itemID] {
+			t.Fatalf("duplicate taskItem localId %q", itemID)
+		}
+		seen[itemID] = true
+	}
+}
+
 func TestPlainTextToADF(t *testing.T) {
 	cases := []struct {
 		name string
@@ -48,7 +82,7 @@ func TestPlainTextToADF(t *testing.T) {
 			name: "task list with states and localIds",
 			in:   "- [ ] a\n- [x] b",
 			want: `{"type":"doc","version":1,"content":[
-				{"type":"taskList","content":[
+				{"type":"taskList","attrs":{"localId":"task-list-1"},"content":[
 					{"type":"taskItem","attrs":{"localId":"task-1","state":"TODO"},"content":[{"type":"text","text":"a"}]},
 					{"type":"taskItem","attrs":{"localId":"task-2","state":"DONE"},"content":[{"type":"text","text":"b"}]}
 				]}
@@ -80,7 +114,7 @@ func TestPlainTextToADF(t *testing.T) {
 					{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"b"}]}]}
 				]},
 				{"type":"paragraph","content":[{"type":"text","text":"some paragraph"}]},
-				{"type":"taskList","content":[
+				{"type":"taskList","attrs":{"localId":"task-list-1"},"content":[
 					{"type":"taskItem","attrs":{"localId":"task-1","state":"DONE"},"content":[{"type":"text","text":"done"}]}
 				]}
 			]}`,
@@ -101,7 +135,7 @@ func TestPlainTextToADF(t *testing.T) {
 			name: "bullet and task lists not grouped together",
 			in:   "- [x] a\n- b",
 			want: `{"type":"doc","version":1,"content":[
-				{"type":"taskList","content":[
+				{"type":"taskList","attrs":{"localId":"task-list-1"},"content":[
 					{"type":"taskItem","attrs":{"localId":"task-1","state":"DONE"},"content":[{"type":"text","text":"a"}]}
 				]},
 				{"type":"bulletList","content":[

@@ -331,12 +331,22 @@ func TestClient_AddComment(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Errorf("unexpected method %s", r.Method)
 		}
+		// The comment body must be sent as an ADF document, not a plain string.
+		var payload struct {
+			Body map[string]any `json:"body"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if payload.Body["type"] != "doc" || payload.Body["version"] != float64(1) {
+			t.Errorf("comment body must be an ADF doc, got %v", payload.Body)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(CommentResponse{ID: "10010", Self: "https://jira/comment/10010", Body: "A comment"})
+		_ = json.NewEncoder(w).Encode(CommentResponse{ID: "10010", Self: "https://jira/comment/10010", Body: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)})
 	})
 	defer server.Close()
 
-	comment, err := client.AddComment(context.Background(), "PROJ-1", &AddCommentRequest{Body: "A comment"})
+	comment, err := client.AddComment(context.Background(), "PROJ-1", &AddCommentRequest{Body: json.RawMessage(`"A comment"`)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

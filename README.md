@@ -441,7 +441,7 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
 
 ### Description formatting and custom fields
 
-The `jira_create_issue`, `jira_update_issue`, and `jira_create_child_issue` tools accept a `description` that is either a plain string or a pre-built ADF document object.
+The `jira_create_issue`, `jira_update_issue`, and `jira_create_child_issue` tools accept a `description` that is either a plain string or a pre-built ADF document object. The `jira_add_comment` tool accepts a `body` with the same contract.
 
 A plain string is converted to Atlassian Document Format (ADF) with the following rules:
 

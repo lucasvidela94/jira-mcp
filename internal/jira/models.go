@@ -69,6 +69,7 @@ func plainTextToADF(text string) map[string]any {
 
 	content := make([]any, 0, len(lines))
 	taskCounter := 0
+	taskListCounter := 0
 
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSuffix(lines[i], "\r")
@@ -109,8 +110,10 @@ func plainTextToADF(text string) map[string]any {
 				i++
 			}
 			i--
+			taskListCounter++
 			content = append(content, map[string]any{
 				"type":    "taskList",
+				"attrs":   map[string]any{"localId": fmt.Sprintf("task-list-%d", taskListCounter)},
 				"content": items,
 			})
 			continue
@@ -369,15 +372,35 @@ type AssignIssueRequest struct {
 }
 
 // AddCommentRequest is the payload used to add a comment.
+//
+// Body is polymorphic, mirroring the Description contract: a JSON-encoded
+// plain string is converted to ADF via plainTextToADF, while a pre-built ADF
+// document object (e.g. `{"type":"doc",...}`) is embedded verbatim. Jira
+// api/3 rejects a plain string body ("Comment body is not valid!"), so the
+// marshaler always sends an ADF document.
 type AddCommentRequest struct {
-	Body string `json:"body"`
+	Body json.RawMessage `json:"-"`
+}
+
+// MarshalJSON encodes the comment payload with the body as an ADF document.
+func (r AddCommentRequest) MarshalJSON() ([]byte, error) {
+	body, ok, err := resolveDescription(r.Body, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("comment body is required")
+	}
+	// Single-key map: json.Marshal embeds json.RawMessage verbatim, so the
+	// pre-built ADF path stays byte-equal to the caller's input.
+	return json.Marshal(map[string]any{"body": body})
 }
 
 // CommentResponse is the Jira response after adding a comment.
 type CommentResponse struct {
-	ID   string `json:"id"`
-	Self string `json:"self"`
-	Body string `json:"body"`
+	ID   string          `json:"id"`
+	Self string          `json:"self"`
+	Body json.RawMessage `json:"body"`
 }
 
 // AddWorklogRequest is the payload used to add a worklog.

@@ -30,20 +30,20 @@ func parseDescription(args map[string]any, name string) (json.RawMessage, bool, 
 	case string:
 		encoded, err := json.Marshal(val)
 		if err != nil {
-			return nil, true, fmt.Errorf("description: %w", err)
+			return nil, true, fmt.Errorf("%s: %w", name, err)
 		}
 		return encoded, true, nil
 	case map[string]any:
 		if err := validateTopLevelADF(val); err != nil {
-			return nil, true, fmt.Errorf("description: %w", err)
+			return nil, true, fmt.Errorf("%s: %w", name, err)
 		}
 		encoded, err := json.Marshal(val)
 		if err != nil {
-			return nil, true, fmt.Errorf("description: %w", err)
+			return nil, true, fmt.Errorf("%s: %w", name, err)
 		}
 		return encoded, true, nil
 	default:
-		return nil, true, fmt.Errorf("description must be a string or an ADF object")
+		return nil, true, fmt.Errorf("%s must be a string or an ADF object", name)
 	}
 }
 
