@@ -48,6 +48,7 @@ func TestConfirmationMiddleware(t *testing.T) {
 		confirmWrite  bool
 		tool          string
 		elicitor      *fakeElicitor
+		confirm       any
 		wantNext      bool
 		wantIsError   bool
 		wantTextMatch string
@@ -86,13 +87,21 @@ func TestConfirmationMiddleware(t *testing.T) {
 			wantTextMatch: "Cancelled",
 		},
 		{
-			name:          "elicitation error fails closed",
+			name:          "elicitation error without confirm fails closed",
 			confirmWrite:  true,
 			tool:          "jira_create_child_issue",
 			elicitor:      &fakeElicitor{err: errors.New("session does not support elicitation")},
 			wantNext:      false,
 			wantIsError:   true,
-			wantTextMatch: "JIRA_MCP_CONFIRM",
+			wantTextMatch: "confirm=true",
+		},
+		{
+			name:         "elicitation error with confirm=true proceeds",
+			confirmWrite: true,
+			tool:         "jira_create_child_issue",
+			elicitor:     &fakeElicitor{err: errors.New("session does not support elicitation")},
+			confirm:      true,
+			wantNext:     true,
 		},
 	}
 
@@ -108,7 +117,11 @@ func TestConfirmationMiddleware(t *testing.T) {
 				return resultText("done"), nil
 			}
 
-			result, err := s.confirmationMiddleware(next)(context.Background(), newRequest(tt.tool, map[string]any{"project_key": "PROJ"}))
+			args := map[string]any{"project_key": "PROJ"}
+			if tt.confirm != nil {
+				args["confirm"] = tt.confirm
+			}
+			result, err := s.confirmationMiddleware(next)(context.Background(), newRequest(tt.tool, args))
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

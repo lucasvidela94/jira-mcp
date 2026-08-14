@@ -39,7 +39,7 @@ func WithConfirmation(enabled bool) Option {
 }
 
 // guardrailInstructions tells every client-side agent not to misuse destructive tools.
-const guardrailInstructions = `jira-mcp connects to a real Jira Cloud instance. The tools jira_create_issue, jira_create_child_issue, and jira_delete_issue make permanent, user-visible changes to the user's board and require explicit user confirmation before running. Never call these tools to test, explore, or inspect how Jira fields work, and never create throwaway test issues. Only create or delete an issue when the user has explicitly asked for that exact action.`
+const guardrailInstructions = `jira-mcp connects to a real Jira Cloud instance. The tools jira_create_issue, jira_create_child_issue, and jira_delete_issue make permanent, user-visible changes to the user's board and require explicit user confirmation before running. Never call these tools to test, explore, or inspect how Jira fields work, and never create throwaway test issues. Only create or delete an issue when the user has explicitly asked for that exact action. When a client cannot prompt interactively, these tools accept a confirm parameter: set confirm=true only after the user has explicitly approved the action.`
 
 // destructiveTools are the tools that require explicit user confirmation.
 var destructiveTools = map[string]bool{
@@ -150,7 +150,13 @@ func (s *Server) confirmationMiddleware(next mcpserver.ToolHandlerFunc) mcpserve
 
 		result, err := s.elicitor.RequestElicitation(ctx, req)
 		if err != nil {
-			return resultError("confirmation required but unavailable: this MCP client does not support user confirmation. Set JIRA_MCP_CONFIRM=off to disable the guardrail, or use an MCP client that supports elicitation."), nil
+			// The client does not support interactive elicitation. Fall back to
+			// the explicit confirm argument so well-behaved clients can still
+			// create/delete once the user has approved the action.
+			if confirm, _ := args["confirm"].(bool); confirm {
+				return next(ctx, request)
+			}
+			return resultError("confirmation required: this MCP client does not support interactive confirmation. Pass confirm=true to proceed, or set JIRA_MCP_CONFIRM=off to disable the guardrail."), nil
 		}
 
 		switch result.Action {

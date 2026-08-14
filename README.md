@@ -253,7 +253,10 @@ Only `JIRA_URL` is required. Run `jira-mcp auth` once to complete the login flow
 
 ### Confirmation guardrail
 
-Destructive write tools — `jira_create_issue`, `jira_create_child_issue`, and `jira_delete_issue` — require explicit user confirmation before they run. The server prompts the MCP client for confirmation and, if the client does not support elicitation, the tool fails closed (refuses to run) rather than executing without consent.
+Destructive write tools — `jira_create_issue`, `jira_create_child_issue`, and `jira_delete_issue` — require explicit user confirmation before they run.
+
+- When the MCP client supports **elicitation**, the server prompts the user interactively and executes only on accept.
+- When the client does **not** support elicitation, the tools accept a `confirm` parameter: pass `confirm=true` to authorize the action. Without it, the server refuses to run (fails closed) rather than executing without consent.
 
 - Default is **on**. Set `JIRA_MCP_CONFIRM=off` (or `false`, `0`, `no`) to disable the guardrail.
 

@@ -49,7 +49,8 @@ const createIssueToolSchema = `{
         }
       ]
     },
-    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."}
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."},
+    "confirm": {"type": "boolean", "description": "Set true to explicitly confirm creation. Required when the MCP client does not support interactive confirmation."}
   },
   "required": ["project_key", "issue_type", "summary"]
 }`
@@ -116,6 +117,7 @@ func deleteIssueTool() mcp.Tool {
 	return mcp.NewTool("jira_delete_issue",
 		mcp.WithDescription("Delete a Jira issue."),
 		mcp.WithString("issue_key", mcp.Description("Issue key"), mcp.Required()),
+		mcp.WithBoolean("confirm", mcp.Description("Set true to explicitly confirm deletion. Required when the MCP client does not support interactive confirmation.")),
 	)
 }
 
@@ -281,7 +283,8 @@ const createChildIssueToolSchema = `{
         }
       ]
     },
-    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."}
+    "fields": {"type": "object", "description": "Optional additional fields as a JSON object. Supported shapes: parent={\"key\":\"PROJ-1\"}, labels=[\"tag\"]. Set assignee via the separate jira_assign_issue tool, or fields={\"assignee\":{\"accountId\":\"...\"}}."},
+    "confirm": {"type": "boolean", "description": "Set true to explicitly confirm creation. Required when the MCP client does not support interactive confirmation."}
   },
   "required": ["parent_key", "project_key", "issue_type", "summary"]
 }`
