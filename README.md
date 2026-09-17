@@ -18,7 +18,8 @@ Model Context Protocol (MCP) server for Jira Cloud. Lets you search, create, upd
 - **JQL search** with configurable result limits
 - **List projects** and **available transitions**
 - **Sprint management** — list, get, and search Jira Agile sprints
-- **OAuth 2.0 login** — browser-based authentication, no manual token creation
+- **OAuth 2.0 login** — browser-based authentication with automatic refresh, using your own Atlassian app credentials
+- **Basic Auth** — works with any Jira Cloud site and no extra setup
 - **Safe by design** — credentials are never logged, returned, or leaked
 - **Multi-platform** — macOS, Linux, Windows, ARM64
 - **Docker-ready** — minimal `scratch` image
@@ -26,31 +27,14 @@ Model Context Protocol (MCP) server for Jira Cloud. Lets you search, create, upd
 
 ## Authentication
 
-jira-mcp supports two authentication methods:
+jira-mcp supports two authentication methods. **Basic Auth is the default and
+the only method that works with no extra setup.** OAuth 2.0 requires an
+Atlassian OAuth app that you own.
 
-### OAuth 2.0 (Recommended)
+### Basic Auth (Recommended default)
 
-Browser-based login with automatic token refresh. No manual token creation required.
-
-```bash
-# Set your Jira URL
-export JIRA_URL=https://yourcompany.atlassian.net
-
-# Login via browser
-jira-mcp auth
-
-# Check token status
-jira-mcp auth --status
-
-# Logout and clear cached tokens
-jira-mcp auth --logout
-```
-
-Tokens are stored in `~/.config/jira-mcp/token.json` with `0600` permissions and automatically refreshed.
-
-### Basic Auth (Fallback)
-
-Traditional email + API token authentication via environment variables.
+Traditional email + API token authentication via environment variables. Works on
+any Jira Cloud site, needs no Atlassian admin approval, and is the simplest path.
 
 Create or verify your Jira API token at: https://id.atlassian.com/manage-profile/security/api-tokens
 
@@ -60,7 +44,49 @@ export JIRA_USERNAME=you@example.com
 export JIRA_API_TOKEN=your-api-token
 ```
 
-> **Note:** If both OAuth tokens and Basic Auth environment variables are present, Basic Auth takes precedence.
+### OAuth 2.0 (bring your own app)
+
+Browser-based login with automatic token refresh, so no manual token creation or
+rotation. It routes API calls through `api.atlassian.com/ex/jira/{cloudId}` and
+stores tokens in `~/.config/jira-mcp/token.json` with `0600` permissions.
+
+> **Important:** OAuth only works with an Atlassian OAuth 2.0 (3LO) app that is
+> authorized for your site. Release binaries embed the publisher's own app, and
+> Atlassian rejects it for any other site with *"We couldn't identify the app
+> requesting access"*. To use OAuth you must register **your own** app.
+
+1. Create an OAuth 2.0 (3LO) app at
+   https://developer.atlassian.com/console/myapps/.
+2. Add the callback URL `http://127.0.0.1:<port>/callback`. `jira-mcp` binds a
+   random local port for each login; any port on `127.0.0.1` is accepted.
+3. Add the scopes `read:jira-work`, `write:jira-work`, and `read:jira-user`.
+4. Export your app credentials and log in:
+
+```bash
+export JIRA_OAUTH_CLIENT_ID=your-client-id
+export JIRA_OAUTH_CLIENT_SECRET=your-client-secret
+
+# The site URL is optional — it is only a hint. Pass it with --url or via
+# JIRA_URL. Login works without it; Atlassian resolves the site for you.
+jira-mcp auth --url https://yourcompany.atlassian.net
+
+# Check token status
+jira-mcp auth --status
+
+# Logout and clear cached tokens
+jira-mcp auth --logout
+```
+
+Credentials are resolved in this order: `JIRA_OAUTH_CLIENT_ID` /
+`JIRA_OAUTH_CLIENT_SECRET`, then the values embedded in the binary at build
+time. Set the variables whenever you want to use your own app.
+
+> **Note:** If `JIRA_API_TOKEN` is present, Basic Auth takes precedence and OAuth
+> is not used at all.
+
+If the browser shows *"We couldn't identify the app requesting access"*, the app
+is not authorized for the site: check the app's distribution settings, or fall
+back to Basic Auth.
 
 ## Installation
 
@@ -77,31 +103,27 @@ brew install jira-mcp
 curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash
 ```
 
-The installer can optionally configure your MCP client automatically. When run in a terminal, it asks which client you want to set up, prompts for your Jira URL, and then asks whether you want to use OAuth (recommended) or Basic Auth.
+The installer can optionally configure your MCP client automatically. When run in
+a terminal it asks which client you want to set up, then collects the Jira site
+URL, your email, and an API token (Basic Auth). OAuth is not configured by the
+installer: an OAuth app has to be created by you in the Atlassian developer
+console and the browser login has to be run once afterwards.
 
-**OAuth flow:**
 ```text
 Which MCP client do you want to configure? [opencode/claude/cursor/windsurf/none] (default: opencode):
 Jira URL (e.g. https://yourcompany.atlassian.net): https://yourcompany.atlassian.net
-Authentication method [oauth/basic] (default: oauth): oauth
-Proceed? [Y/n] y
-```
-
-After installation, run `jira-mcp auth` to complete the OAuth login via browser.
-
-**Basic Auth flow:**
-```text
-Which MCP client do you want to configure? [opencode/claude/cursor/windsurf/none] (default: opencode):
-Jira URL (e.g. https://yourcompany.atlassian.net): https://yourcompany.atlassian.net
-Authentication method [oauth/basic] (default: oauth): basic
 Jira username/email: you@example.com
 Jira API token:
+Will write jira-mcp configuration for opencode at /home/you/.config/opencode/opencode.json
+Jira URL: https://yourcompany.atlassian.net
+Username: you@example.com
+API token: <hidden>
 Proceed? [Y/n] y
 ```
 
 Create or verify your Jira API token at: https://id.atlassian.com/manage-profile/security/api-tokens
 
-Skip the wizard or pass the answers as flags:
+Skip the wizard, or pass the answers as flags:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- --no-configure
@@ -111,21 +133,19 @@ curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scrip
 curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- \
   --client opencode \
   --jira-url https://yourcompany.atlassian.net \
-  --auth-method oauth \
-  --yes
-```
-
-Or with Basic Auth:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.sh | bash -s -- \
-  --client opencode \
-  --jira-url https://yourcompany.atlassian.net \
-  --auth-method basic \
   --jira-username you@example.com \
   --jira-api-token your-api-token \
   --yes
 ```
+
+Run `bash install.sh --help` for the full flag list (`--method`, `--dir`,
+`--version`, `--sudo`, `--insecure`, `--client`, `--jira-url`,
+`--jira-username`, `--jira-api-token`, `--configure`, `--no-configure`,
+`--yes`, `--inspect`).
+
+To use OAuth instead, see [OAuth 2.0 (bring your own app)](#oauth-20-bring-your-own-app)
+and set the two `JIRA_OAUTH_*` variables in the generated config instead of the
+Basic Auth ones.
 
 ### Docker
 
@@ -135,15 +155,20 @@ Build the image locally:
 docker build -t jira-mcp .
 ```
 
-**OAuth mode:** Mount your token file and set `JIRA_URL`:
+The image is built **without** embedded OAuth credentials, so OAuth needs your
+own app credentials at runtime:
 
 ```bash
-docker run -v ~/.config/jira-mcp:/root/.config/jira-mcp \
-  -e JIRA_URL=https://yourcompany.atlassian.net \
+docker run \
+  -e JIRA_OAUTH_CLIENT_ID=your-client-id \
+  -e JIRA_OAUTH_CLIENT_SECRET=your-client-secret \
+  -v ~/.config/jira-mcp:/root/.config/jira-mcp \
   jira-mcp
 ```
 
-> **Note:** Run `jira-mcp auth` on your host machine first to generate the token file.
+> **Note:** Run `jira-mcp auth` on your host machine first to generate the token
+> file. The callback listens on `127.0.0.1` inside the container, so complete the
+> browser login on the host before starting or restarting the container.
 
 **Basic Auth mode:** Pass all credentials as environment variables:
 
@@ -176,19 +201,17 @@ docker pull ghcr.io/lucasvidela94/jira-mcp:latest
 irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 | iex
 ```
 
-The PowerShell installer supports the same optional auto-configuration when run interactively. To force or skip the wizard, or to pass the values as parameters, save the script first:
+The PowerShell installer supports the same optional auto-configuration when run
+interactively (Basic Auth only). Save the script first to pass the values as
+parameters:
 
-**OAuth:**
 ```powershell
 irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 -OutFile install.ps1
-.\install.ps1 -Configure -Client opencode -JiraUrl https://yourcompany.atlassian.net -AuthMethod oauth -Yes
+.\install.ps1 -Configure -Client opencode -JiraUrl https://yourcompany.atlassian.net -JiraUsername you@example.com -JiraApiToken your-api-token -Yes
 ```
 
-**Basic Auth:**
-```powershell
-irm https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scripts/install.ps1 -OutFile install.ps1
-.\install.ps1 -Configure -Client opencode -JiraUrl https://yourcompany.atlassian.net -AuthMethod basic -JiraUsername you@example.com -JiraApiToken your-api-token -Yes
-```
+To use OAuth instead, see [OAuth 2.0 (bring your own app)](#oauth-20-bring-your-own-app)
+and set the two `JIRA_OAUTH_*` variables in the generated config.
 
 ### Go install
 
@@ -241,15 +264,22 @@ curl -fsSL https://raw.githubusercontent.com/lucasvidela94/jira-mcp/master/scrip
 
 ## Configuration
 
-### OAuth Mode (Recommended)
+### OAuth Mode
 
-Only `JIRA_URL` is required. Run `jira-mcp auth` once to complete the login flow.
+Requires your own Atlassian OAuth 2.0 (3LO) app; see
+[OAuth 2.0 (bring your own app)](#oauth-20-bring-your-own-app).
 
 | Variable | Description | Example |
 |---|---|---|
-| `JIRA_URL` | Your Jira Cloud base URL | `https://yourcompany.atlassian.net` |
+| `JIRA_OAUTH_CLIENT_ID` | Client ID of **your** Atlassian OAuth app | `abc123` |
+| `JIRA_OAUTH_CLIENT_SECRET` | Client secret of your app | `secret` |
+| `JIRA_URL` | Optional site URL hint for `jira-mcp auth` | `https://yourcompany.atlassian.net` |
 | `ENABLED_TOOLS` | Optional comma-separated tool allowlist | `jira_search,jira_get_issue,jira_list_projects` |
 | `JIRA_MCP_CONFIRM` | Confirmation guardrail for destructive tools (`on` by default) | `off` |
+
+The two `JIRA_OAUTH_*` variables are optional: when unset, release binaries fall
+back to the credentials embedded at build time, which only work for the
+publisher's own site.
 
 ### Confirmation guardrail
 
@@ -273,7 +303,10 @@ All three variables are required.
 
 ## Client Setup
 
-After installing, configure your MCP client. **OAuth users** only need `JIRA_URL` (run `jira-mcp auth` first). **Basic Auth users** need all three variables.
+After installing, configure your MCP client. **Basic Auth users** need
+`JIRA_URL`, `JIRA_USERNAME`, and `JIRA_API_TOKEN`. **OAuth users** need their own
+app credentials (`JIRA_OAUTH_CLIENT_ID`, `JIRA_OAUTH_CLIENT_SECRET`) and must run
+`jira-mcp auth` once; `JIRA_URL` is optional there.
 
 <details>
 <summary><b>Claude Desktop</b> (<code>~/.config/claude/claude_desktop_config.json</code>)</summary>
@@ -285,6 +318,8 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
     "jira": {
       "command": "jira-mcp",
       "env": {
+        "JIRA_OAUTH_CLIENT_ID": "your-client-id",
+        "JIRA_OAUTH_CLIENT_SECRET": "your-client-secret",
         "JIRA_URL": "https://yourcompany.atlassian.net"
       }
     }
@@ -319,6 +354,8 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
     "jira": {
       "command": "jira-mcp",
       "env": {
+        "JIRA_OAUTH_CLIENT_ID": "your-client-id",
+        "JIRA_OAUTH_CLIENT_SECRET": "your-client-secret",
         "JIRA_URL": "https://yourcompany.atlassian.net"
       }
     }
@@ -354,6 +391,8 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
       "type": "local",
       "command": ["jira-mcp"],
       "environment": {
+        "JIRA_OAUTH_CLIENT_ID": "your-client-id",
+        "JIRA_OAUTH_CLIENT_SECRET": "your-client-secret",
         "JIRA_URL": "https://yourcompany.atlassian.net"
       }
     }
@@ -389,6 +428,8 @@ After installing, configure your MCP client. **OAuth users** only need `JIRA_URL
     "jira": {
       "command": "jira-mcp",
       "env": {
+        "JIRA_OAUTH_CLIENT_ID": "your-client-id",
+        "JIRA_OAUTH_CLIENT_SECRET": "your-client-secret",
         "JIRA_URL": "https://yourcompany.atlassian.net"
       }
     }

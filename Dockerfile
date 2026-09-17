@@ -22,4 +22,8 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/jira-mcp /jira-mcp
 
 # The binary exposes stdio by default; override with --transport http if desired.
+# Basic Auth: pass JIRA_URL, JIRA_USERNAME and JIRA_API_TOKEN (see README).
+# OAuth: this image is built without embedded credentials, so pass
+# JIRA_OAUTH_CLIENT_ID and JIRA_OAUTH_CLIENT_SECRET at runtime, and mount a token
+# file produced by running `jira-mcp auth` on the host.
 ENTRYPOINT ["/jira-mcp"]

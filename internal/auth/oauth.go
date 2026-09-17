@@ -121,8 +121,15 @@ func (p *OAuthProvider) Login(ctx context.Context, config *oauth2.Config) error 
 	config.RedirectURL = redirectURL
 
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+
+	// Always show the URL: a failed browser launch (or a headless session)
+	// must remain recoverable by copy/paste. Never print the client secret.
+	fmt.Fprintln(os.Stderr, "Authorize jira-mcp by opening this URL:")
+	fmt.Fprintln(os.Stderr, authURL)
+	fmt.Fprintln(os.Stderr, "Waiting for authorization to complete in the browser...")
+
 	if err := srv.BrowserOpen(authURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Could not open browser: %v\nVisit this URL to authorize:\n%s\n", err, authURL)
+		fmt.Fprintf(os.Stderr, "Could not open a browser automatically (%v); use the URL above.\n", err)
 	}
 
 	code, err := srv.WaitForCode()

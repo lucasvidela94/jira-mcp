@@ -122,6 +122,59 @@ func TestLoad_ConfirmWriteInvalidStaysOn(t *testing.T) {
 	}
 }
 
+func TestLoad_OAuthClientCredentials(t *testing.T) {
+	setenv(t, "JIRA_OAUTH_CLIENT_ID", "client-id-123")
+	setenv(t, "JIRA_OAUTH_CLIENT_SECRET", "client-secret-456")
+	unsetenv(t, "JIRA_API_TOKEN")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.OAuthClientID != "client-id-123" {
+		t.Errorf("expected OAuthClientID client-id-123, got %q", cfg.OAuthClientID)
+	}
+	if cfg.OAuthClientSecret != "client-secret-456" {
+		t.Errorf("expected OAuthClientSecret client-secret-456, got %q", cfg.OAuthClientSecret)
+	}
+}
+
+func TestLoad_OAuthClientCredentials_Absent(t *testing.T) {
+	unsetenv(t, "JIRA_OAUTH_CLIENT_ID")
+	unsetenv(t, "JIRA_OAUTH_CLIENT_SECRET")
+	unsetenv(t, "JIRA_API_TOKEN")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error in OAuth mode without app credentials, got %v", err)
+	}
+	if cfg.OAuthClientID != "" {
+		t.Errorf("expected empty OAuthClientID, got %q", cfg.OAuthClientID)
+	}
+	if cfg.OAuthClientSecret != "" {
+		t.Errorf("expected empty OAuthClientSecret, got %q", cfg.OAuthClientSecret)
+	}
+}
+
+func TestLoad_OAuthClientCredentials_ValidInBasicMode(t *testing.T) {
+	setenv(t, "JIRA_URL", "https://example.atlassian.net")
+	setenv(t, "JIRA_USERNAME", "user@example.com")
+	setenv(t, "JIRA_API_TOKEN", "secret-token")
+	unsetenv(t, "JIRA_OAUTH_CLIENT_ID")
+	unsetenv(t, "JIRA_OAUTH_CLIENT_SECRET")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.AuthMode != "basic" {
+		t.Errorf("expected AuthMode basic, got %q", cfg.AuthMode)
+	}
+	if cfg.OAuthClientID != "" || cfg.OAuthClientSecret != "" {
+		t.Error("expected no OAuth app credentials in Basic mode")
+	}
+}
+
 func setenv(t *testing.T, key, value string) {
 	t.Helper()
 	os.Setenv(key, value)

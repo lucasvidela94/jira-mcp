@@ -2,21 +2,29 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 )
 
+// ErrCallbackTimeout indicates that the OAuth redirect callback never arrived
+// before the deadline. Callers can detect it with errors.Is and translate it
+// into user-facing guidance, since the most common cause (an OAuth app that is
+// not authorized for the target site) is not observable from the CLI.
+var ErrCallbackTimeout = errors.New("timeout waiting for the OAuth callback")
+
 // CallbackServer listens on 127.0.0.1:0 for the OAuth redirect callback.
 type CallbackServer struct {
-	server       *http.Server
-	port         int
-	code         chan string
-	err          chan error
-	ctx          context.Context
-	cancel       context.CancelFunc
-	BrowserOpen  func(url string) error // injectable for testing
+	server      *http.Server
+	port        int
+	timeout     time.Duration
+	code        chan string
+	err         chan error
+	ctx         context.Context
+	cancel      context.CancelFunc
+	BrowserOpen func(url string) error // injectable for testing
 }
 
 // NewCallbackServer creates a new callback server that hasn't started yet.
@@ -32,6 +40,7 @@ func NewCallbackServer() *CallbackServer {
 // The timeout limits how long the server will wait for a callback.
 func (s *CallbackServer) Start(timeout time.Duration) {
 	s.ctx, s.cancel = context.WithTimeout(context.Background(), timeout)
+	s.timeout = timeout
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -78,7 +87,7 @@ func (s *CallbackServer) WaitForCode() (string, error) {
 
 	select {
 	case <-s.ctx.Done():
-		return "", fmt.Errorf("callback timeout: no authorization received within the time limit")
+		return "", fmt.Errorf("%w: no authorization received within %s", ErrCallbackTimeout, s.timeout)
 	case err := <-s.err:
 		return "", err
 	case code := <-s.code:

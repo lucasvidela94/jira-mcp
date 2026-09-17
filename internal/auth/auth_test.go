@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -458,6 +459,9 @@ func TestCallbackServer_Timeout(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "timeout") {
 		t.Errorf("expected timeout error, got %v", err)
+	}
+	if !errors.Is(err, ErrCallbackTimeout) {
+		t.Errorf("expected error to wrap ErrCallbackTimeout, got %v", err)
 	}
 }
 

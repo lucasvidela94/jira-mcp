@@ -14,6 +14,13 @@ type Config struct {
 	AuthMode     string   // "basic" when JIRA_API_TOKEN is set, "oauth" otherwise
 	EnabledTools []string // ENABLED_TOOLS (comma-separated allowlist)
 	ConfirmWrite bool     // JIRA_MCP_CONFIRM (whether destructive write tools require confirmation; default on)
+
+	// OAuthClientID and OAuthClientSecret are the operator's own Atlassian
+	// OAuth 2.0 (3LO) app credentials (JIRA_OAUTH_CLIENT_ID /
+	// JIRA_OAUTH_CLIENT_SECRET). They are optional; when unset, builds that
+	// embedded credentials at compile time fall back to those.
+	OAuthClientID     string
+	OAuthClientSecret string
 }
 
 // Load reads Jira configuration from environment variables.
@@ -21,10 +28,12 @@ type Config struct {
 // Otherwise, it returns without error for OAuth mode (token from disk).
 func Load() (Config, error) {
 	cfg := Config{
-		URL:          os.Getenv("JIRA_URL"),
-		Username:     os.Getenv("JIRA_USERNAME"),
-		APIToken:     os.Getenv("JIRA_API_TOKEN"),
-		ConfirmWrite: true,
+		URL:               os.Getenv("JIRA_URL"),
+		Username:          os.Getenv("JIRA_USERNAME"),
+		APIToken:          os.Getenv("JIRA_API_TOKEN"),
+		OAuthClientID:     os.Getenv("JIRA_OAUTH_CLIENT_ID"),
+		OAuthClientSecret: os.Getenv("JIRA_OAUTH_CLIENT_SECRET"),
+		ConfirmWrite:      true,
 	}
 
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("JIRA_MCP_CONFIRM"))) {
