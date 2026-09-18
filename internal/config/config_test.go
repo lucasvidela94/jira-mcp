@@ -186,3 +186,35 @@ func unsetenv(t *testing.T, key string) {
 	os.Unsetenv(key)
 	t.Cleanup(func() { os.Unsetenv(key) })
 }
+
+func TestLoad_EnabledTools(t *testing.T) {
+	unsetenv(t, "JIRA_API_TOKEN")
+	setenv(t, "ENABLED_TOOLS", "jira_search, jira_get_issue ,jira_list_projects")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"jira_search", "jira_get_issue", "jira_list_projects"}
+	if len(cfg.EnabledTools) != len(want) {
+		t.Fatalf("expected %v, got %v", want, cfg.EnabledTools)
+	}
+	for i := range want {
+		if cfg.EnabledTools[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, cfg.EnabledTools)
+		}
+	}
+}
+
+func TestLoad_EnabledTools_Absent(t *testing.T) {
+	unsetenv(t, "JIRA_API_TOKEN")
+	unsetenv(t, "ENABLED_TOOLS")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EnabledTools != nil {
+		t.Errorf("expected nil EnabledTools, got %v", cfg.EnabledTools)
+	}
+}

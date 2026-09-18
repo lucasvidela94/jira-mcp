@@ -44,3 +44,18 @@ func TestSSEServer_HealthReturns404(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusNotFound, resp.StatusCode)
 	}
 }
+
+func TestServer_ToolList_Filtered(t *testing.T) {
+	srv := NewServer(&fakeJiraClient{}, []string{"jira_search", "jira_get_issue"})
+	tools := srv.mcp.ListTools()
+
+	if len(tools) != 2 {
+		t.Fatalf("expected 2 tools, got %d", len(tools))
+	}
+	if _, ok := tools["jira_search"]; !ok {
+		t.Error("expected jira_search to be registered")
+	}
+	if _, ok := tools["jira_create_issue"]; ok {
+		t.Error("did not expect jira_create_issue to be registered")
+	}
+}

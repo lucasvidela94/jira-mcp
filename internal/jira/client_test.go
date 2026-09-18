@@ -846,3 +846,238 @@ func TestClient_ListBoards_ByProjectKey(t *testing.T) {
 		t.Errorf("unexpected boards: %+v", boards)
 	}
 }
+
+func TestClient_GetIssueHistory(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/issue/PROJ-1/changelog" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Changelog{
+			Total: 1,
+			Histories: []ChangelogEntry{{
+				ID:    "10001",
+				Items: []ChangelogItem{{Field: "status", FromString: "To Do", ToString: "Done"}},
+			}},
+		})
+	})
+	defer server.Close()
+
+	changelog, err := client.GetIssueHistory(context.Background(), "PROJ-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if changelog.Total != 1 || len(changelog.Histories) != 1 {
+		t.Fatalf("unexpected changelog: %+v", changelog)
+	}
+	if changelog.Histories[0].Items[0].Field != "status" {
+		t.Errorf("unexpected changelog item: %+v", changelog.Histories[0].Items[0])
+	}
+}
+
+func TestClient_ListProjectVersions(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/project/PROJ/versions" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]Version{{ID: "10000", Name: "v1.0", Released: true}})
+	})
+	defer server.Close()
+
+	versions, err := client.ListProjectVersions(context.Background(), "PROJ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(versions) != 1 || versions[0].Name != "v1.0" || !versions[0].Released {
+		t.Errorf("unexpected versions: %+v", versions)
+	}
+}
+
+func TestClient_GetVersion(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/version/10000" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Version{ID: "10000", Name: "v1.0"})
+	})
+	defer server.Close()
+
+	version, err := client.GetVersion(context.Background(), "10000")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version.ID != "10000" || version.Name != "v1.0" {
+		t.Errorf("unexpected version: %+v", version)
+	}
+}
+
+func TestClient_GetDevelopmentInfo(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/issue/PROJ-1" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("fields") != "development" {
+			t.Errorf("unexpected fields %q", r.URL.Query().Get("fields"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":  "10001",
+			"key": "PROJ-1",
+			"fields": map[string]any{
+				"development": map[string]any{
+					"detail": map[string]any{
+						"repositories": []map[string]any{
+							{"name": "jira-mcp", "pullRequests": []map[string]any{{"id": "1", "name": "PR-1"}}},
+						},
+					},
+				},
+			},
+		})
+	})
+	defer server.Close()
+
+	info, err := client.GetDevelopmentInfo(context.Background(), "PROJ-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info == nil || info.Detail == nil || len(info.Detail.Repositories) != 1 {
+		t.Fatalf("unexpected development info: %+v", info)
+	}
+	if info.Detail.Repositories[0].Name != "jira-mcp" {
+		t.Errorf("unexpected repository: %+v", info.Detail.Repositories[0])
+	}
+}
+
+func TestClient_ListStatuses(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/project/PROJ/statuses" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]ProjectStatus{{
+			ID:       "1",
+			Name:     "Task",
+			Statuses: []Status{{ID: "3", Name: "In Progress", StatusCategory: StatusCategory{Key: "indeterminate"}}},
+		}})
+	})
+	defer server.Close()
+
+	statuses, err := client.ListStatuses(context.Background(), "PROJ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(statuses) != 1 || len(statuses[0].Statuses) != 1 || statuses[0].Statuses[0].Name != "In Progress" {
+		t.Errorf("unexpected statuses: %+v", statuses)
+	}
+}
+
+func TestClient_CreateIssueLink(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/rest/api/3/issueLink" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		linkType, _ := body["type"].(map[string]any)
+		if linkType["name"] != "Relates" {
+			t.Errorf("unexpected link type: %+v", body["type"])
+		}
+		inward, _ := body["inwardIssue"].(map[string]any)
+		outward, _ := body["outwardIssue"].(map[string]any)
+		if inward["key"] != "PROJ-1" || outward["key"] != "PROJ-2" {
+			t.Errorf("unexpected issues in link: %+v", body)
+		}
+		w.WriteHeader(http.StatusCreated)
+	})
+	defer server.Close()
+
+	err := client.CreateIssueLink(context.Background(), &IssueLinkRequest{
+		LinkTypeName: "Relates",
+		InwardKey:    "PROJ-1",
+		OutwardKey:   "PROJ-2",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_GetRelatedIssues(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/api/3/issue/PROJ-1" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("fields") != "issuelinks" {
+			t.Errorf("unexpected fields %q", r.URL.Query().Get("fields"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":  "10001",
+			"key": "PROJ-1",
+			"fields": map[string]any{
+				"issuelinks": []map[string]any{
+					{
+						"type":         map[string]any{"name": "Relates"},
+						"outwardIssue": map[string]any{"id": "10002", "key": "PROJ-2", "self": "https://x/PROJ-2"},
+					},
+				},
+			},
+		})
+	})
+	defer server.Close()
+
+	related, err := client.GetRelatedIssues(context.Background(), "PROJ-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(related) != 1 || related[0].Key != "PROJ-2" {
+		t.Errorf("unexpected related issues: %+v", related)
+	}
+}
+
+func TestClient_CreateChildIssue(t *testing.T) {
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/rest/api/3/issue" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		var body struct {
+			Fields struct {
+				Parent struct {
+					Key string `json:"key"`
+				} `json:"parent"`
+			} `json:"fields"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body.Fields.Parent.Key != "PROJ-1" {
+			t.Errorf("expected parent PROJ-1, got %q", body.Fields.Parent.Key)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(Issue{ID: "10003", Key: "PROJ-3"})
+	})
+	defer server.Close()
+
+	issue, err := client.CreateChildIssue(context.Background(), "PROJ-1", &CreateChildIssueRequest{
+		ParentKey:  "PROJ-1",
+		ProjectKey: "PROJ",
+		IssueType:  "Sub-task",
+		Summary:    "Child",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if issue == nil || issue.Key != "PROJ-3" {
+		t.Errorf("unexpected child issue: %+v", issue)
+	}
+}

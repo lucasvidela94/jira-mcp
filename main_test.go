@@ -400,3 +400,38 @@ func TestAuthTimeoutHelp_NoSiteURL(t *testing.T) {
 		t.Errorf("expected both fallbacks in %q", msg)
 	}
 }
+
+func TestDetectCLI_PositionalArgActivates(t *testing.T) {
+	cliMode, args := detectCLI([]string{"search", "--jql", "project = PROJ"})
+
+	if !cliMode {
+		t.Fatal("expected CLI mode for a positional command")
+	}
+	if len(args) != 3 || args[0] != "search" {
+		t.Errorf("unexpected args: %v", args)
+	}
+}
+
+func TestDetectCLI_FlagsOnlyStayInServerMode(t *testing.T) {
+	cliMode, args := detectCLI([]string{"--transport", "http"})
+
+	if cliMode {
+		t.Fatal("expected server mode when no positional command is present")
+	}
+	if len(args) != 2 {
+		t.Errorf("unexpected args: %v", args)
+	}
+}
+
+func TestDetectCLI_ForceFlagStripsItself(t *testing.T) {
+	cliMode, args := detectCLI([]string{"--cli", "--transport", "http"})
+
+	if !cliMode {
+		t.Fatal("expected --cli to force CLI mode")
+	}
+	for _, a := range args {
+		if a == "--cli" {
+			t.Errorf("--cli should be stripped from args, got %v", args)
+		}
+	}
+}

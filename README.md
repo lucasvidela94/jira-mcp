@@ -506,6 +506,24 @@ Set the assignee with the separate `jira_assign_issue` tool, or via `fields` as 
 
 > **Note:** `jira_create_issue` returns only `{id, key, self}` (fields are `null`). Use `jira_get_issue` to verify the resulting `parent`, `labels`, and `assignee`.
 
+## Command-line usage
+
+The same binary doubles as a standalone Jira CLI for terminal use. Any bare subcommand switches to CLI mode (or force it with `--cli`). Output is JSON; add `--pretty` to indent it.
+
+```bash
+jira-mcp list-projects
+jira-mcp get-issue MC-1
+jira-mcp search "project = MC ORDER BY created DESC"
+jira-mcp get-issue-history MC-1
+jira-mcp get-related-issues MC-1
+jira-mcp list-statuses MC
+jira-mcp list-project-versions MC
+jira-mcp list-sprints 265
+jira-mcp --pretty list-users
+```
+
+Run `jira-mcp help` for the full command list.
+
 ## HTTP/SSE Transport
 
 By default the binary speaks MCP over `stdio`. You can also run it as an HTTP/SSE server:
