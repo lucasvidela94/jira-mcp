@@ -19,13 +19,19 @@ type elicitor interface {
 	RequestElicitation(ctx context.Context, request mcp.ElicitationRequest) (*mcp.ElicitationResult, error)
 }
 
+// defaultElicitationTimeout bounds how long a destructive tool waits for the
+// client to answer an elicitation request before failing closed. Without it,
+// clients that ignore elicitation/create leave the tool call blocked forever.
+const defaultElicitationTimeout = 30 * time.Second
+
 // Server wraps the mcp-go server and Jira client.
 type Server struct {
-	client       JiraClient
-	mcp          *mcpserver.MCPServer
-	enabledTools []string
-	confirmWrite bool
-	elicitor     elicitor
+	client        JiraClient
+	mcp           *mcpserver.MCPServer
+	enabledTools  []string
+	confirmWrite  bool
+	elicitor      elicitor
+	elicitTimeout time.Duration
 }
 
 // Option configures a Server.
@@ -66,8 +72,9 @@ func NewServer(client JiraClient, enabledTools []string, opts ...Option) *Server
 			mcpserver.WithElicitation(),
 			mcpserver.WithInstructions(guardrailInstructions),
 		),
-		enabledTools: enabledTools,
-		confirmWrite: true,
+		enabledTools:  enabledTools,
+		confirmWrite:  true,
+		elicitTimeout: defaultElicitationTimeout,
 	}
 	s.elicitor = s.mcp
 	for _, opt := range opts {
@@ -123,8 +130,16 @@ func (s *Server) confirmationMiddleware(next mcpserver.ToolHandlerFunc) mcpserve
 			return next(ctx, request)
 		}
 
-		message := fmt.Sprintf("Confirm %s", request.Params.Name)
 		args := request.GetArguments()
+
+		// Clients that cannot prompt interactively confirm through the tool
+		// argument. Short-circuit before elicitation: asking a client that
+		// ignores elicitation/create would block the call indefinitely.
+		if confirm, _ := args["confirm"].(bool); confirm {
+			return next(ctx, request)
+		}
+
+		message := fmt.Sprintf("Confirm %s", request.Params.Name)
 		for _, key := range []string{"project_key", "issue_key", "parent_key"} {
 			if v, ok := args[key]; ok {
 				message += fmt.Sprintf(" %s=%v", key, v)
@@ -148,15 +163,14 @@ func (s *Server) confirmationMiddleware(next mcpserver.ToolHandlerFunc) mcpserve
 			},
 		}
 
-		result, err := s.elicitor.RequestElicitation(ctx, req)
+		elicitCtx, cancel := context.WithTimeout(ctx, s.elicitTimeout)
+		defer cancel()
+
+		result, err := s.elicitor.RequestElicitation(elicitCtx, req)
 		if err != nil {
-			// The client does not support interactive elicitation. Fall back to
-			// the explicit confirm argument so well-behaved clients can still
-			// create/delete once the user has approved the action.
-			if confirm, _ := args["confirm"].(bool); confirm {
-				return next(ctx, request)
-			}
-			return resultError("confirmation required: this MCP client does not support interactive confirmation. Pass confirm=true to proceed, or set JIRA_MCP_CONFIRM=off to disable the guardrail."), nil
+			// No interactive support, or the client never answered within the
+			// timeout. Fail closed and point at the explicit confirm argument.
+			return resultError("confirmation required: no interactive confirmation was received. Pass confirm=true to proceed, or set JIRA_MCP_CONFIRM=off to disable the guardrail."), nil
 		}
 
 		switch result.Action {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -141,5 +142,71 @@ func TestConfirmationMiddleware(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// failIfCalledElicitor fails the test if elicitation is ever requested.
+type failIfCalledElicitor struct {
+	t *testing.T
+}
+
+func (f *failIfCalledElicitor) RequestElicitation(context.Context, mcp.ElicitationRequest) (*mcp.ElicitationResult, error) {
+	f.t.Fatal("elicitation must not be requested when confirm=true")
+	return nil, nil
+}
+
+// blockingElicitor mimics a client that ignores elicitation/create: it never
+// answers, so it only returns when the context is cancelled.
+type blockingElicitor struct{}
+
+func (blockingElicitor) RequestElicitation(ctx context.Context, _ mcp.ElicitationRequest) (*mcp.ElicitationResult, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestConfirmationMiddlewareConfirmSkipsElicitation(t *testing.T) {
+	s := NewServer(&fakeJiraClient{}, nil)
+	s.elicitor = &failIfCalledElicitor{t: t}
+
+	nextCalled := false
+	next := func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		nextCalled = true
+		return resultText("done"), nil
+	}
+
+	args := map[string]any{"project_key": "PROJ", "confirm": true}
+	if _, err := s.confirmationMiddleware(next)(context.Background(), newRequest("jira_create_issue", args)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !nextCalled {
+		t.Fatal("expected next to run when confirm=true")
+	}
+}
+
+func TestConfirmationMiddlewareElicitationTimeoutFailsClosed(t *testing.T) {
+	s := NewServer(&fakeJiraClient{}, nil)
+	s.elicitor = blockingElicitor{}
+	s.elicitTimeout = 20 * time.Millisecond
+
+	nextCalled := false
+	next := func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		nextCalled = true
+		return resultText("done"), nil
+	}
+
+	args := map[string]any{"project_key": "PROJ"}
+	result, err := s.confirmationMiddleware(next)(context.Background(), newRequest("jira_create_issue", args))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if nextCalled {
+		t.Fatal("next must not run when elicitation times out")
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("expected an error result, got %#v", result)
+	}
+	text := result.Content[0].(mcp.TextContent).Text
+	if !contains(text, "confirm=true") {
+		t.Errorf("result text %q does not contain %q", text, "confirm=true")
 	}
 }
